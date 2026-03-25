@@ -29,6 +29,7 @@ SELECT
     , CAST(dl.[indeks] AS int)                                          AS dl_index
     , dl.[varslet]                                                      AS dl_alarm
     , dl.[VaktID]                                                       AS dl_resource
+    -- , dl.[ressurs_navn1]                                                AS dl_doctor         -- Sensitive info!
     , dl.[kommunenavn]                                                  AS dl_municipality
     , dl.[kode_navn]                                                    AS dl_incident_type
     , ROW_NUMBER() OVER (
@@ -538,6 +539,7 @@ CREATE NONCLUSTERED INDEX IX_hs_pid ON #hs(hs_pid);
 ------------------------------------------------------------
 SELECT
     reg.AmisId AS qi_incident
+  -- , CONCAT(doc.Firstname, ' ', doc.Lastname) AS qi_doc				-- Sensitive info!
   -- , reg.PatientId AS qi_patient										-- Possible multiple patients per incident
   -- , reg.Gender AS qi_gender											-- Usable for hp matching, but too general for accurate linkage; redundant since sex and age are available elsewhere
   -- , FLOOR(reg.Age / 12.0) AS qi_age									-- Usable for hp matching, but too general for accurate linkage; redundant since sex and age are available elsewhere
@@ -638,6 +640,7 @@ GROUP BY qib.qi_incident; 			-- Limits data to one case per incident and aggrega
 SELECT
 
 	  CAST(ROW_NUMBER() OVER (ORDER BY dl.dl_incident) AS INT)			AS case_num
+	
 	, CASE
         WHEN hm.hm_dispatch = 'Completed'
 			AND hp.hp_la_pid IS NOT NULL
@@ -650,7 +653,24 @@ SELECT
          )
 				THEN 1
 				ELSE 0
-      END AS eligible
+      END 																AS eligible
+	  
+	, CASE
+        WHEN hm.hm_dispatch = 'Completed'
+			AND hp.hp_la_pid IS NOT NULL
+     AND (
+          (hp.hp_naca IS NOT NULL AND hp.hp_dia IS NOT NULL)
+          OR (
+              (hp.hp_naca IS NULL OR hp.hp_dia IS NULL)
+              AND qi_patient_contact = 'Yes'
+             )
+         )
+		 
+		 AND (qi_logistical_benefit IS NOT NULL OR qi_medical_benefit IS NOT NULL)
+				THEN 1
+				ELSE 0
+      END 																AS included
+	  
 	, dl.dl_incident													AS incident_num
 	, dl.dl_alarm														AS alarm
 	, dl.dl_year														AS alarm_year
@@ -795,4 +815,3 @@ DROP TABLE IF EXISTS #hp;
 DROP TABLE IF EXISTS #docs;
 DROP TABLE IF EXISTS #hm;
 DROP TABLE IF EXISTS #dl;
-

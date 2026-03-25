@@ -2,17 +2,14 @@
 # title: "HEMS Benefit Data analysis"
 # author: "Lars Eide Næss"
 # contact: "lars.eide.ness@stolav.no"
-# revision date: 2025-12-15
+# revision date: 2026-03-23
 
 # Preparation ----
 ## Setup ----
 
 # Clearing the workspace and setting local settings -
 rm(list = ls())
-Sys.setlocale("LC_ALL", "no_NO.UTF-8")
-Sys.setenv(TZ = "UTC")
-
-setwd("...C:/YOUR_DIRECTORY...")
+setwd("C:/YOUR_DIRECTORY")
 
 # Loading in libraries -
 library(tidyverse)
@@ -24,11 +21,11 @@ library(marginaleffects)
 library(splines)
 library(grid)
 library(cowplot)
+library(magick)
 
 ## Data import ----
-load(file = "./data.RData")
-study_data <- data %>% filter(eligible == 1)
-
+load(file = "./Data/hemsqi_data.RData")
+study_data <- hemsqi %>% filter(included == 1)
 
 ## Analysis configuration ---- 
 
@@ -36,8 +33,7 @@ study_data <- data %>% filter(eligible == 1)
 benefit_colors <- c(
   "Logistical benefit" = "#91beff",
   "Medical benefit" = "#ffe087",
-  "Uncertain benefit" = "#a8f0c6",
-  "NA benefit" = adjustcolor("#808080",)
+  "No benefit" = "#B5B5B5"
   )
 
 logistic_colors <- c(
@@ -70,25 +66,23 @@ benefit_figA <- function(data, scenario_label, filter_expr) {
           (qi_logistical_benefit == "No" | qi_medical_benefit == "No") &
           !(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit)),
         na.rm = TRUE
-      ),
-      na  = sum(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit), na.rm = TRUE)
+      )
     ) %>%
     {
       log <- .$log
       med <- .$med
       dbl <- .$dbl
       no  <- .$no
-      na  <- .$na
-      total <- log + med + no + na - dbl
+      total <- log + med + no - dbl
       dbl_pct <- round(dbl / total * 100)
       
       tibble(
         scenario = scenario_label,
-        category = c("Logistical benefit", "Medical benefit", "Uncertain benefit", "NA benefit"),
-        xmin = c(0, log - dbl, log + med - dbl, log + med - dbl + no),
-        xmax = c(log, log + med - dbl, log + med - dbl + no, log + med - dbl + no + na),
-        ymin = c(0.29, 0.31, 0.30, 0.30),
-        ymax = c(0.59, 0.61, 0.60, 0.60),
+        category = c("Logistical benefit", "Medical benefit", "No benefit"),
+        xmin = c(0, log - dbl, log + med - dbl),
+        xmax = c(log, log + med - dbl, log + med - dbl + no),
+        ymin = c(0.29, 0.31, 0.30),
+        ymax = c(0.59, 0.61, 0.60),
         alpha = 0.4,
         y = NA,
         dbl_pct = dbl_pct
@@ -110,25 +104,23 @@ benefit_figB <- function(data, scenario_label, filter_expr) {
           (qi_logistical_benefit == "No" | qi_medical_benefit == "No") &
           !(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit)),
         na.rm = TRUE
-      ),
-      na  = sum(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit), na.rm = TRUE)
+      )
     ) %>%
     {
       log <- .$log
       med <- .$med
       dbl <- .$dbl
       no  <- .$no
-      na  <- .$na
-      total <- log + med + no + na - dbl
+      total <- log + med + no - dbl
       dbl_pct <- round(dbl / total * 100)
       
       tibble(
         scenario = scenario_label,
-        category = c("Logistical benefit", "Medical benefit", "Uncertain benefit", "NA benefit"),
-        xmin = c(0, log - dbl, log + med - dbl, log + med - dbl + no),
-        xmax = c(log, log + med - dbl, log + med - dbl + no, log + med - dbl + no + na),
-        ymin = c(0.3, 0.4, 0.35, 0.35),
-        ymax = c(0.6, 0.65, 0.62, 0.62),
+        category = c("Logistical benefit", "Medical benefit", "No benefit"),
+        xmin = c(0, log - dbl, log + med - dbl),
+        xmax = c(log, log + med - dbl, log + med - dbl + no),
+        ymin = c(0.3, 0.4, 0.35),
+        ymax = c(0.6, 0.65, 0.62),
         alpha = 0.4,
         y = NA,
         dbl_pct = dbl_pct
@@ -143,147 +135,259 @@ benefit_figB <- function(data, scenario_label, filter_expr) {
 
 ### Figure 1: Map ----
 
-# Metadata
-origo <- c(10.374228, 63.368063)
-map_data <- study_data %>%
-  filter(hm_vessel != "Other")
+# Trondheim HEMS coordinates
+trh <- c(10.374228, 63.368063)
 
-hlp <- scales::comma(sum(map_data$hm_vessel == "Helicopter"))
-rrc <- scales::comma(sum(map_data$hm_vessel == "RRC"))
-
-#Map plot
-fig1 <- csmaps::nor_municip_map_b2024_default_dt %>%
-  filter(str_detect(location_code, "^municip_nor50") |
-           str_detect(location_code, "^municip_nor15") |
-           str_detect(location_code, "^municip_nor342")|
-           str_detect(location_code, "^municip_nor343") |
-           str_detect(location_code, "^municip_nor182")|
-           str_detect(location_code, "^municip_nor181")) %>% 
-  left_join(csdata::nor_locations_names(border = 2024), by = "location_code") %>%
-  mutate(municipality_nr = str_extract(location_code, "\\d{4}")) %>%
-  crossing(vessel = factor(c("Rapid Response Car", "Helicopter"),
-                           levels = c("Rapid Response Car", "Helicopter"))) %>%
-  mutate(group = paste(group, vessel, sep = "_")) %>%
-  arrange(group, order) %>% 
-  left_join(map_data %>%
-              mutate(vessel = case_when(hm_vessel == "Helicopter" ~ "Helicopter",
-                                        hm_vessel == "RRC" ~ "Rapid Response Car")) %>% 
-              group_by(emcc_municipality_nr, vessel) %>% 
-              summarise(hems_count = n(), .groups = "drop"),
-            by = c("municipality_nr" = "emcc_municipality_nr", "vessel" = "vessel")
-  ) %>%
-  ggplot(aes(x = long, y = lat, group = group, fill = hems_count)) +
-  geom_polygon() +
-  geom_path(color = "black", linewidth = 0.1) +
-  scale_x_continuous(
-    breaks = function(x) {
-      spc <- ceiling((x[2] - x[1]) / 6)
-      seq(floor(x[1]) + spc, ceiling(x[2]) - spc, by = spc)
-    },
-    labels = function(x) paste0(round(x), "\u00b0E")
-  )+
-  scale_y_continuous(
-    labels = function(y) paste0(round(y), "\u00b0N")
-    )+
-  labs(fill = "Completed HEMS dispatches per municipality 2022-2024") +
-  scico::scale_fill_scico(
-    palette = "navia",
-    labels = scales::label_number(accuracy = 10),
-    direction = -1,
-    na.value = "grey80",
-    limits = c(0, 450), 
-    guide = guide_colorbar(
-      barheight = 0.5,
-      barwidth = 20,
-      ticks = FALSE,
-      direction = "horizontal",
-      title.position = "top",
-      title.hjust = 0.5
-    )
-  ) +
-  geom_point(aes(x = origo[1], y = origo[2]),
-             shape = 21,
-             color = "white", # border
-             fill = "red",   # fill
-             size = 2.0,
-             stroke = 1.0,
-             show.legend = FALSE
-  ) +
-  facet_wrap(~vessel, labeller = as_labeller(c(
-    "Rapid Response Car" = paste0("b) Rapid Response Car (n = ", rrc, ")"),
-    "Helicopter" = paste0("a) Helicopter (n = ", hlp, ")")
-  )))+
-  coord_map(projection = "conic", parameters = c(origo[2]), expand = FALSE) +
-  theme_minimal() +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    legend.position = "bottom",
-    strip.text.x = element_textbox_simple(
-      linewidth = 0.5, halign = 0.5,
-      margin = margin(10, 0, 10, 0, "pt")
-    )
-  )
-
-
+# Inset map
 inset_europe <- ggplot(rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") %>%
                          dplyr::filter(region_un == "Europe")) +
   geom_sf(fill = "grey90", color = "white") +
   annotate("rect", xmin = 6, xmax = 14, ymin = 61, ymax = 66,
-           fill = NA, color = "red", linewidth = 0.3)+
+           fill = NA, color = "red", linewidth = 0.3) +
   coord_sf(xlim = c(-25, 45), ylim = c(34, 72), expand = FALSE) +
   theme_void() +
   theme(
     panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)
   )
 
+#Base data
+map_data <- study_data %>%
+  filter(hm_vessel != "Other")
 
-trondheim_box <- ggplot() +
-  geom_point(aes(x = 1, y = 1), shape = 21, fill = "red", color = "white", size = 3, stroke = 1) +
-  annotate("text", x = 1.2, y = 1, label = "Trondheim HEMS", hjust = 0, size = 3) +
-  xlim(0.9, 2) + ylim(0.8, 1.2) +
-  theme_void()
+hlp <- scales::comma(sum(map_data$hm_vessel == "Helicopter"))
+rrc <- scales::comma(sum(map_data$hm_vessel == "RRC"))
 
+#Population data
+popdata <- read.csv2(
+  file          = "./Resources/2024_SSB_Areal og befolkning per kommune (11342).csv",
+  sep           = ";",
+  quote         = "\"",
+  dec           = ",",
+  fileEncoding  = "UTF-8",
+  check.names   = FALSE,
+  stringsAsFactors = FALSE
+) %>%
+  separate(region, into = c("kommune_nr", "kommune_navn"),
+           sep = " ", extra = "merge")
 
-figure1 <- fig1 +
+# Shared base map data (filtered municipalities)
+base_map <- csmaps::nor_municip_map_b2024_default_dt %>%
+  filter(
+    str_detect(location_code, "^municip_nor50")  |
+      str_detect(location_code, "^municip_nor15")  |
+      str_detect(location_code, "^municip_nor342") |
+      str_detect(location_code, "^municip_nor343") |
+      str_detect(location_code, "^municip_nor182") |
+      str_detect(location_code, "^municip_nor181")
+  ) %>%
+  left_join(csdata::nor_locations_names(border = 2024), by = "location_code") %>%
+  mutate(municipality_nr = str_extract(location_code, "\\d{4}"))
+
+# Shared HEMS count data (joined separately per vessel)
+hems_counts <- map_data %>%
+  mutate(vessel = case_when(
+    hm_vessel == "Helicopter" ~ "Helicopter",
+    hm_vessel == "RRC"        ~ "Rapid Response Car"
+  )) %>%
+  group_by(emcc_municipality_nr, vessel) %>%
+  summarise(hems_count = n(), .groups = "drop")
+
+# Shared theme for all three maps
+map_theme <- theme_minimal() +
+  theme(
+    axis.title.x    = element_blank(),
+    axis.title.y    = element_blank(),
+    legend.position = "bottom",
+    plot.margin     = margin(0, 4, 0, 4),
+    plot.title      = element_text(size = 10, hjust = 0.5,
+                                   margin = margin(2, 0, 4, 0))
+  )
+
+# Shared coord
+map_coord <- coord_map(projection = "conic", parameters = c(trh[2]), expand = FALSE)
+
+# Shared x/y scales
+map_scale_x <- scale_x_continuous(
+  breaks = function(x) {
+    spc <- ceiling((x[2] - x[1]) / 6)
+    seq(floor(x[1]) + spc, ceiling(x[2]) - spc, by = spc)
+  },
+  labels = function(x) paste0(round(x), "\u00b0E")
+)
+map_scale_y <- scale_y_continuous(
+  labels = function(y) paste0(round(y), "\u00b0N")
+)
+
+# Shared HEMS fill scale (used to extract legend later)
+hems_fill_scale <- scico::scale_fill_scico(
+  palette  = "navia",
+  labels   = scales::label_number(accuracy = 10),
+  direction = -1,
+  na.value = "grey80",
+  limits   = c(0, 450),
+  guide    = guide_colorbar(
+    barheight      = 0.5,
+    barwidth       = 20,
+    ticks          = FALSE,
+    direction      = "horizontal",
+    title.position = "top",
+    title.hjust    = 0.5
+  )
+)
+
+# --- a) Helicopter map ---
+fig_hlp <- base_map %>%
+  left_join(
+    hems_counts %>% filter(vessel == "Helicopter"),
+    by = c("municipality_nr" = "emcc_municipality_nr")
+  ) %>%
+  ggplot(aes(x = long, y = lat, group = group, fill = hems_count)) +
+  geom_polygon() +
+  geom_path(color = "black", linewidth = 0.1) +
+  map_scale_x +
+  map_scale_y +
+  labs(
+    title = paste0("a) Helicopter missions (n = ", hlp, ")"),
+    fill  = "Completed HEMS dispatches per municipality 2022-2024"
+  ) +
+  hems_fill_scale +
+  geom_point(aes(x = trh[1], y = trh[2]),
+             shape = 21, color = "white", fill = "red",
+             size = 2.0, stroke = 1.0, show.legend = FALSE) +
   geom_label(
-    data = data.frame(
-      x = 5.5,
-      y = 61.0,
-      label = "    Trondheim HEMS",
-      vessel = "Helicopter"
-      ),
+    data = data.frame(x = 5.5, y = 61.0, label = "    Trondheim HEMS"),
     aes(x = x, y = y, label = label),
-    inherit.aes = FALSE,
-    size = 2,
-    color = "black",
-    fill = "white",
-    linewidth = 0.3,
-    hjust = 0,
-    label.padding = unit(0.3, "lines"))+
-  geom_point(data = data.frame(
-    x = 5.7,
-    y = 61.0,
-    vessel = "Helicopter"
-    ),
+    inherit.aes = FALSE, size = 2, color = "black", fill = "white",
+    linewidth = 0.3, hjust = 0, label.padding = unit(0.3, "lines")
+  ) +
+  geom_point(
+    data = data.frame(x = 5.7, y = 61.0),
     aes(x = x, y = y),
-    inherit.aes = FALSE,
-    shape = 21,
-    color = "white",
-    fill = "red",
-    size = 2.0,
-    stroke = 1.0)+
-  inset_element(inset_europe, 
-                left = 0.0, bottom = 0.7,
-                right = 0.4 , top = 0.95 )
-  
+    inherit.aes = FALSE, shape = 21,
+    color = "white", fill = "red", size = 2.0, stroke = 1.0
+  ) +
+  map_coord +
+  map_theme
 
+# --- b) Rapid Response Car map ---
+fig_rrc <- base_map %>%
+  left_join(
+    hems_counts %>% filter(vessel == "Rapid Response Car"),
+    by = c("municipality_nr" = "emcc_municipality_nr")
+  ) %>%
+  ggplot(aes(x = long, y = lat, group = group, fill = hems_count)) +
+  geom_polygon() +
+  geom_path(color = "black", linewidth = 0.1) +
+  map_scale_x +
+  map_scale_y +
+  labs(
+    title = paste0("b) Rapid response car missions (n = ", rrc, ")"),
+    fill  = "Completed HEMS dispatches per municipality 2022-2024"
+  ) +
+  hems_fill_scale +
+  geom_point(aes(x = trh[1], y = trh[2]),
+             shape = 21, color = "white", fill = "red",
+             size = 2.0, stroke = 1.0, show.legend = FALSE) +
+  map_coord +
+  map_theme
 
-plot(figure1)
-ggsave("./Figures/fig1_catchment area.png", width = 3000, height = 2000, units = "px", dpi = 300, bg = "white")
+# --- c) Population density map ---
+fig_pop <- base_map %>%
+  left_join(
+    popdata %>%
+      select(kommune_nr,
+             pop_density = `2024 Innbyggere per km² landareal`),
+    by = c("municipality_nr" = "kommune_nr")
+  ) %>%
+  ggplot(aes(x = long, y = lat, group = group, fill = pop_density)) +
+  geom_polygon() +
+  geom_path(color = "black", linewidth = 0.1) +
+  map_scale_x +
+  map_scale_y +
+  labs(
+    title = "c) Population density",
+    fill  = "Population per km²"
+  ) +
+  scico::scale_fill_scico(
+    palette   = "lajolla",
+    labels    = scales::label_number(accuracy = 10),
+    direction = -1,
+    na.value  = "grey80",
+    limits    = c(0, 450),
+    guide     = guide_colorbar(
+      barheight      = 0.45,
+      barwidth       = 14,
+      ticks          = FALSE,
+      direction      = "horizontal",
+      title.position = "top",
+      title.hjust    = 0.5
+    )
+  ) +
+  geom_point(aes(x = trh[1], y = trh[2]),
+             shape = 21, color = "white", fill = "red",
+             size = 2.0, stroke = 1.0, show.legend = FALSE) +
+  map_coord +
+  map_theme
+
+# --- Assembly ---
+
+fig_hlp_noleg <- fig_hlp + theme(legend.position = "none")
+fig_rrc_noleg <- fig_rrc + theme(legend.position = "none")
+fig_pop_noleg <- fig_pop + theme(legend.position = "none")
+
+aligned <- cowplot::align_plots(
+  fig_hlp_noleg, fig_rrc_noleg, fig_pop_noleg,
+  align = "hv", axis = "tblr"
+)
+
+aligned[[1]] <- cowplot::ggdraw(aligned[[1]]) +
+  cowplot::draw_plot(
+    inset_europe,
+    x = 0.15, y = 0.6, width = 0.28, height = 0.20
+  )
+
+top_row <- cowplot::plot_grid(
+  aligned[[1]], aligned[[2]], aligned[[3]],
+  nrow = 1, rel_widths = c(1, 1, 1)
+)
+
+legend_hems <- cowplot::get_legend(
+  fig_hlp + theme(legend.position = "bottom", legend.box = "horizontal")
+)
+legend_pop <- cowplot::get_legend(
+  fig_pop + theme(legend.position = "bottom", legend.box = "horizontal")
+)
+
+bottom_row <- cowplot::plot_grid(
+  legend_hems, legend_pop,
+  nrow = 1, rel_widths = c(2, 1)
+)
+
+figure1 <- cowplot::ggdraw() +
+  cowplot::draw_plot(top_row,    x = 0, y = 0.11, width = 1, height = 0.89) +
+  cowplot::draw_plot(bottom_row, x = 0, y = 0,    width = 1, height = 0.11)
+
+ggsave(
+  filename = "./Figures/Figure1 - catchment area.png",
+  plot     = figure1,
+  width    = 10,
+  height = 5.4,
+  units = "in",
+  dpi = 300,
+  bg = "white"
+)
+
+# Magick-trimming remove excess white space
+magick::image_read("./Figures/Figure1 - catchment area.png") %>%
+  magick::image_trim() %>%
+  magick::image_border("white", "30x30") %>%
+  magick::image_write("./Figures/Figure1 - catchment area.png")
+
 
 #Cleanup
-rm(map_data, origo, inset_europe, trondheim_box, hlp, rrc, fig1)
+rm(aligned, base_map, bottom_row, fig_hlp, fig_hlp_noleg, fig_pop, fig_pop_noleg, fig_rrc, fig_rrc_noleg,
+   hems_counts, hems_fill_scale, legend_hems, legend_pop, map_coord, map_scale_x, map_scale_y, map_data,
+   map_theme, popdata, top_row, trh, inset_europe, hlp, rrc)
 
 
 ### Figure 2: Flowchart ----
@@ -295,17 +399,17 @@ fig2_data <- c(
   "HEMS dispatches"     = hemsqi %>% filter(hm_dispatch != "Rejected") %>% nrow(),
   "Aborted dispatches"  = hemsqi %>% filter(hm_dispatch == "Aborted") %>% nrow(),
   "No patient contact"  = hemsqi %>% filter(hm_dispatch == "Completed" & eligible == 0) %>% nrow(),
-  "Eligible missions"   = study_data %>% nrow(),
-  "QI data"             = study_data %>% filter(!is.na(qi_medical_benefit) | !is.na(qi_logistical_benefit)) %>% nrow(),
-  "Missing QI data"     = study_data %>% filter(is.na(qi_medical_benefit) & is.na(qi_logistical_benefit)) %>% nrow()
+  "Eligible missions"   = hemsqi %>% filter(eligible == 1) %>%  nrow(),
+  "QI data"             = hemsqi %>% filter(eligible ==1 & included == 1) %>% nrow(),
+  "Missing QI data"     = hemsqi %>% filter(eligible ==1 & included != 1) %>% nrow()
 )
 
 # Ploting flowchart -
-figure2 <- DiagrammeR::grViz(glue::glue("
+fig2 <- DiagrammeR::grViz(glue::glue("
 digraph hems_flow {{
   graph [layout = dot, rankdir = TB]
 
-  node [shape = box, fontname = Helvetica, fontsize = 12, style = filled, color = black]
+  node [shape = box, fontname = 'sans', fontsize = 12, style = filled, color = black]
 
   hems_requests [label = 'HEMS requests\\n n = {fig2_data['HEMS requests']}', fillcolor = '#E5E5E5']
   rejected       [label = 'Rejected requests\\n n = {fig2_data['Rejected requests']}', fillcolor = '#F4A6A6']
@@ -314,7 +418,7 @@ digraph hems_flow {{
   no_patient     [label = 'No patient contact\\n n = {fig2_data['No patient contact']}', fillcolor = '#F4A6A6']
   eligible       [label = 'Eligible missions\\n n = {fig2_data['Eligible missions']}', fillcolor = '#91BEFF']
   qi_data        [label = 'QI data\\n n = {fig2_data['QI data']}', fillcolor = '#DFF0D8']
-  missing_qi     [label = 'Missing QI data\\n n = {fig2_data['Missing QI data']}', fillcolor = '#FFF5CC']
+  missing_qi     [label = 'Missing QI data\\n n = {fig2_data['Missing QI data']}', fillcolor = '#F4A6A6']
 
   hems_requests -> rejected
   hems_requests -> hems_dispatch
@@ -327,9 +431,14 @@ digraph hems_flow {{
 "))
 
 
-figure2
-fig2 <- DiagrammeRsvg::export_svg(figure2)
-rsvg::rsvg_png(charToRaw(fig2), file = "./Figures/Raw/fig2_flowchart_sketch.png", width = 3000, height = 3000)
+
+figure2 <- DiagrammeRsvg::export_svg(fig2)
+rsvg::rsvg_png(
+  charToRaw(figure2),
+  file = "./Figures/Raw/Figure2 - flowchart_sketch.png",
+  width = 3000,
+  height = 2000
+  )
 
 #Cleanup
 rm(fig2_data, fig2)
@@ -344,8 +453,7 @@ fig3a_data <- benefit_figA(study_data, "Overall benefit", TRUE) %>%
       levels = c(
         "Logistical benefit",
         "Medical benefit",
-        "Uncertain benefit",
-        "NA benefit"
+        "No benefit"
       )
     )
   ) %>%
@@ -431,8 +539,7 @@ fig3b_data <- bind_rows(
       levels = c(
         "Logistical benefit",
         "Medical benefit",
-        "Uncertain benefit",
-        "NA benefit"
+        "No benefit"
       )
     )
   ) %>%
@@ -570,10 +677,16 @@ fig3b <- ggplot(fig3b_data %>% filter(!(scenario == "Rapid response car" & categ
 
 figure3 <- fig3a|fig3b + plot_layout(guides = "collect") &
   theme(legend.position = "bottom",
-        legend.justification = "left")
+        legend.justification = "center")
 
-plot(figure3)
-ggsave("./Figures/fig3_benefit_association I.png", width = 3000, units = "px", dpi = 300, bg = "white")
+ggsave(
+  filename = "./Figures/Figure3 - benefit association I.png",
+  plot = figure3,
+  width = 10,
+  units = "in",
+  dpi = 300,
+  bg = "white"
+  )
 
 #Cleanup
 rm(fig3a_data, fig3b_data, fig3a, fig3b)
@@ -595,8 +708,7 @@ fig4a_data <- bind_rows(
       levels = c(
         "Logistical benefit",
         "Medical benefit",
-        "Uncertain benefit",
-        "NA benefit"
+        "No benefit"
       )
     )
   ) %>%
@@ -675,8 +787,7 @@ fig4b_data <- bind_rows(
       levels = c(
         "Logistical benefit",
         "Medical benefit",
-        "Uncertain benefit",
-        "NA benefit"
+        "No benefit"
       )
     )
   ) %>%
@@ -742,90 +853,20 @@ fig4b <- ggplot(fig4b_data) +
   )
 
 
-fig4c_data <- bind_rows(
-  benefit_figB(study_data, "Transported by HEMS", hp_transport == "Transported by HEMS"),
-  benefit_figB(study_data, "Transported by GEMS w/HEMS-physician", hp_transport == "Transported by GEMS w/HEMS-physician"),
-  benefit_figB(study_data, "No HEMS-assisted transport", hp_transport == "No HEMS-assisted transport")
-) %>%
-  mutate(
-    category = factor(
-      category,
-      levels = c(
-        "Logistical benefit",
-        "Medical benefit",
-        "Uncertain benefit",
-        "NA benefit"
-      )
-    )
-  ) %>%
-  group_by(scenario) %>%
-  mutate(
-    total = max(xmax),
-    xmin_pct = xmin / total * 100,
-    xmax_pct = xmax / total * 100
-  ) %>%
-  ungroup() %>%
-  mutate(
-    y = as.numeric(factor(scenario, levels = rev(unique(scenario))))
-  ) %>%
-  mutate(
-    bar_height = ymax - ymin,
-    label_pos = (xmin_pct + xmax_pct) / 2,
-    label_text = paste0(round(xmax_pct - xmin_pct, 0), "%"),
-    y_label = ifelse(bar_height < 0.1, y + ymax + 0.05, y + ymin + bar_height / 2)
-  )
-
-
-
-fig4c <- ggplot(fig4c_data) +
-  geom_rect(aes(xmin = xmin_pct, xmax = xmax_pct, ymin = y + ymin, ymax = y + ymax, fill = category, alpha = alpha),
-            color = "black") +
-  geom_text(aes(x = label_pos, y = y_label, label = label_text),
-            size = 2, color = "black") +
-  scale_fill_manual(values = adjustcolor(benefit_colors, alpha.f = 0.7)) +
-  scale_alpha_identity() +
-  scale_x_continuous(labels = scales::percent_format(scale = 1), limits = c(0, 100))+
-  scale_y_continuous(
-    breaks = unique(fig4c_data$y) + 0.5,
-    labels = unique(fig4c_data$scenario)
-  ) +
-  geom_text(
-    data = fig4c_data %>% distinct(scenario, y, total),
-    aes(x = 0, y = y + 0.9, label = paste0(scenario, " (n = ", total, ")")),
-    hjust = 0,
-    size = 3,
-    fontface = "bold"
-  ) +
-  annotate("text", x = -Inf, y = Inf, label = "c)", 
-           hjust = -0.2, vjust = 1.2, fontface = "plain", size = 4)+
-  labs(
-    title = "Assessment of benefit",
-    x = "Proportion (%)",
-    y = NULL,
-    fill = "Benefit"
-  ) +
-  theme_void() +
-  theme(
-    plot.title = element_blank(),
-    axis.title.x = element_blank(),
-    axis.text.y = element_blank(),
-    legend.title = element_blank(),
-    legend.position = "bottom",
-    legend.direction = "horizontal",
-    legend.text = element_text(size = 8),
-    legend.key.size = unit(0.4, "cm"),
-    legend.spacing.y = unit(0.2, "cm"),
-    legend.margin = margin(t = 5, r = 5, b = 5, l = 5),
-    plot.margin = margin(t = 20, r = 10, b = 10, l = 10)
-  )
-
 figure4 <- fig4a/fig4b
 #figure4 <- ((fig4a|fig4b)/fig4c)
-plot(figure4)
-ggsave("./Figures/fig4_benefit association II.png", width = 3000, units = "px", dpi = 300, bg = "white")
+
+ggsave(
+  filename = "./Figures/Figure4 - benefit association II.png",
+  plot = figure4,
+  width = 10,
+  units = "in",
+  dpi = 300,
+  bg = "white"
+  )
 
 #Cleanup
-rm(fig4a_data, fig4a, fig4b_data, fig4b, fig4c_data, fig4c)
+rm(fig4a_data, fig4a, fig4b_data, fig4b)
 
 ### Figure 5: Regression: Benefit prediction - Descriptives ----
 
@@ -838,7 +879,7 @@ regdata_pred <- study_data %>%
     
     qi_med = ifelse(qi_medical_benefit == "Yes", 1, 0) %>% replace_na(0),
     
-    qi_unc = ifelse(
+    qi_no = ifelse(
       (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)) &
         (qi_medical_benefit    != "Yes" | is.na(qi_medical_benefit)) &
         (qi_logistical_benefit == "No" | qi_medical_benefit == "No"),
@@ -916,7 +957,7 @@ reg_med_age <- glm(as.formula(paste("qi_med ~",
                    data = regdata_pred,
                    family = "binomial")
 
-reg_unc_age  <- glm(as.formula(paste("qi_unc  ~",
+reg_no_age  <- glm(as.formula(paste("qi_no  ~",
                                     reg_vars_def)),
                    data = regdata_pred,
                    family = "binomial")
@@ -938,10 +979,10 @@ pred_med_age <- avg_predictions(reg_med_age,
                                 transform = plogis,
                                 by = "age")
 
-pred_unc_age  <- avg_predictions(reg_unc_age,
+pred_no_age  <- avg_predictions(reg_no_age,
                                  newdata = datagrid(
                                    age = seq(0, 100, by = 2),
-                                   model = reg_unc_age),
+                                   model = reg_no_age),
                                 type = "link",
                                 transform = plogis,
                                 by = "age")
@@ -950,7 +991,7 @@ pred_unc_age  <- avg_predictions(reg_unc_age,
 preds_age <- bind_rows(
   pred_log_age %>% mutate(type = "log"),
   pred_med_age %>% mutate(type = "med"),
-  pred_unc_age %>% mutate(type= "no")
+  pred_no_age %>% mutate(type= "no")
   ) %>%
   select(type, age, estimate, conf.low, conf.high) %>%
   mutate(type = factor(type, levels = c(
@@ -962,7 +1003,10 @@ preds_age <- bind_rows(
 # Plotting age predictions
 plot_log_age <- ggplot(pred_log_age,aes(x=age,y=estimate))+
   geom_line()+
-  geom_ribbon(aes(ymin=conf.low,ymax=conf.high),alpha=.3, fill = "#dae8fc")+
+  geom_ribbon(aes(ymin=conf.low,ymax=conf.high),
+              alpha=.3,
+              fill = benefit_colors["Logistical benefit"]
+              )+
   scale_y_continuous(limits = c(0, 1)) +
   labs(
     title = "Logistical benefit",
@@ -978,7 +1022,10 @@ plot_log_age <- ggplot(pred_log_age,aes(x=age,y=estimate))+
 
 plot_med_age <- ggplot(pred_med_age,aes(x=age,y=estimate))+
   geom_line()+
-  geom_ribbon(aes(ymin=conf.low,ymax=conf.high),alpha=.3, fill = "#fff2cc")+
+  geom_ribbon(aes(ymin=conf.low,ymax=conf.high),
+              alpha=.3,
+              fill = benefit_colors["Medical benefit"]
+  )+
   scale_y_continuous(limits = c(0, 1)) +
   labs(
     title = "Medical benefit",
@@ -993,12 +1040,15 @@ plot_med_age <- ggplot(pred_med_age,aes(x=age,y=estimate))+
   )
 
 
-plot_unc_age <- ggplot(pred_unc_age,aes(x=age,y=estimate))+
+plot_no_age <- ggplot(pred_no_age,aes(x=age,y=estimate))+
   geom_line()+
-  geom_ribbon(aes(ymin=conf.low,ymax=conf.high),alpha=.3, fill = "#a8f0c6")+
+  geom_ribbon(aes(ymin=conf.low,ymax=conf.high),
+              alpha=.3,
+              fill = benefit_colors["No benefit"]
+  )+
   scale_y_continuous(limits = c(0, 1)) +
   labs(
-    title = "Uncertain benefit",
+    title = "No benefit",
     x = "Patient age (years)",
     y = "Predicted probability",
   ) +
@@ -1012,8 +1062,8 @@ plot_unc_age <- ggplot(pred_unc_age,aes(x=age,y=estimate))+
 # Descriptives prediction
 reg_desc_log <- glm(as.formula(paste("qi_log ~", reg_vars_def)), data = regdata_pred, family = "binomial")
 reg_desc_med <- glm(as.formula(paste("qi_med ~", reg_vars_def)), data = regdata_pred, family = "binomial")
-reg_desc_unc  <- glm(as.formula(paste("qi_unc  ~", reg_vars_def)), data = regdata_pred, family = "binomial")
-reg_desc_models <- list("Logistical benefit" = reg_desc_log, "Medical benefit" = reg_desc_med, "Uncertain benefit" = reg_desc_unc)
+reg_desc_no  <- glm(as.formula(paste("qi_no  ~", reg_vars_def)), data = regdata_pred, family = "binomial")
+reg_desc_models <- list("Logistical benefit" = reg_desc_log, "Medical benefit" = reg_desc_med, "No benefit" = reg_desc_no)
 
 #### Regresssion variables (descriptives) ----
 pred_vars_desc <- c("year", "season", "weekpart", "shift", "gender")
@@ -1033,7 +1083,7 @@ pred_desc <- map_dfr(names(reg_desc_models), function(name) {
 
 preds_desc <- pred_desc %>%
   select(var, outcome, estimate, conf.low, conf.high) %>%
-  mutate(outcome = factor(outcome, levels = c("Logistical benefit", "Medical benefit", "Uncertain benefit"))) %>% 
+  mutate(outcome = factor(outcome, levels = c("Logistical benefit", "Medical benefit", "No benefit"))) %>% 
   pivot_wider(names_from = outcome, values_from = c(estimate, conf.low, conf.high))
 
 # Plot descriptives
@@ -1071,7 +1121,7 @@ figure5 <- plot_grid(
     draw_label("Predicted probability", angle = 90, vjust = 0.5, hjust = 0.5, size = 10),
   plot_grid(
     plot_grid(
-      plot_log_age, plot_med_age, plot_unc_age,
+      plot_log_age, plot_med_age, plot_no_age,
       ncol = 1,
       align = "v",
       axis = "lr"
@@ -1095,15 +1145,22 @@ figure5 <- plot_grid(
   rel_widths = c(0.05, 1)
 )
 
-plot(figure5)
-ggsave("./Figures/fig5_benefit prediction_descriptives.png", width = 3000, height = 2000, units = "px", dpi = 300, bg = "white")
+ggsave(
+  filename = "./Figures/Figure5 - benefit prediction I.png",
+  plot = figure5,
+  width = 10,
+  units = "in",
+  dpi = 300,
+  bg = "white"
+)
+
 
 #Cleanup
-rm(reg_log_age, reg_med_age, reg_unc_age)
-rm(pred_log_age, pred_med_age, pred_unc_age)
+rm(reg_log_age, reg_med_age, reg_no_age)
+rm(pred_log_age, pred_med_age, pred_no_age)
 rm(reg_desc_models)
-rm(pred_desc, reg_desc_log, reg_desc_med, reg_desc_unc)
-rm(plot_log_age, plot_med_age, plot_unc_age, plot_desc)
+rm(pred_desc, reg_desc_log, reg_desc_med, reg_desc_no)
+rm(plot_log_age, plot_med_age, plot_no_age, plot_desc)
 rm(pred_vars_desc)
 
 
@@ -1113,8 +1170,8 @@ rm(pred_vars_desc)
 
 reg_nmi_log <- glm(as.formula(paste("qi_log ~", reg_vars_nmi)), data = regdata_pred, family = "binomial")
 reg_nmi_med <- glm(as.formula(paste("qi_med ~", reg_vars_nmi)), data = regdata_pred, family = "binomial")
-reg_nmi_unc  <- glm(as.formula(paste("qi_unc  ~", reg_vars_nmi)), data = regdata_pred, family = "binomial")
-reg_nmi_models <- list("Logistical benefit" = reg_nmi_log, "Medical benefit" = reg_nmi_med, "Uncertain benefit" = reg_nmi_unc)
+reg_nmi_no  <- glm(as.formula(paste("qi_no  ~", reg_vars_nmi)), data = regdata_pred, family = "binomial")
+reg_nmi_models <- list("Logistical benefit" = reg_nmi_log, "Medical benefit" = reg_nmi_med, "No benefit" = reg_nmi_no)
 
 
 
@@ -1130,7 +1187,7 @@ pred_nmi <- map_dfr(names(reg_nmi_models), function(name) {
 
 preds_nmi <- pred_nmi %>% 
   select(var, outcome, estimate, conf.low, conf.high) %>%
-  mutate(outcome = factor(outcome, levels = c("Logistical benefit", "Medical benefit", "Uncertain benefit"))) %>% 
+  mutate(outcome = factor(outcome, levels = c("Logistical benefit", "Medical benefit", "No benefit"))) %>% 
   pivot_wider(names_from = outcome, values_from = c(estimate, conf.low, conf.high))
 
 
@@ -1163,15 +1220,22 @@ plot_grid(
     ),
   x = 0, y = 0, width = 1, height = 1)
 
-plot(figure6)
-ggsave("./Figures/fig6_benefit prediction_nmi.png", width = 3000, height = 2000, units = "px", dpi = 300, bg = "white")
+ggsave(
+  filename = "./Figures/Figure6 - benefit prediction II.png",
+  plot = figure6,
+  width = 10,
+  units = "in",
+  dpi = 300,
+  bg = "white"
+)
+
 
 #Cleanup
 rm(reg_nmi_models)
 rm(pred_nmi)
 rm(reg_nmi_log)
 rm(reg_nmi_med)
-rm(reg_nmi_unc)
+rm(reg_nmi_no)
 
 
 ### Figure 7: Regression: Outcomes predicted by benefit ----
@@ -1194,7 +1258,7 @@ regdata_out <- study_data %>%
     
     qi_med = ifelse(qi_medical_benefit == "Yes", 1, 0) %>% replace_na(0),
     
-    qi_unc = ifelse(qi_log == 0 & qi_med == 0, 1, 0),
+    qi_no = ifelse(qi_log == 0 & qi_med == 0, 1, 0),
   
     year = factor(alarm_year),
     
@@ -1274,11 +1338,11 @@ pred_out_d30 <- bind_rows(
     variables = list(qi_log = 0, qi_med = 0),
     type = "link",
     transform = plogis
-    ) %>% mutate(outcome = "Uncertain benefit")
+    ) %>% mutate(outcome = "No benefit")
 ) %>%
   select(outcome, estimate, conf.low, conf.high) %>%
   mutate(outcome = factor(outcome, levels = c(
-    "Uncertain benefit", "Medical benefit", "Logistical benefit"
+    "No benefit", "Medical benefit", "Logistical benefit"
   )))
 
 
@@ -1298,11 +1362,11 @@ pred_out_los <- bind_rows(
     reg_out_los,
     variables = list(qi_log = 0, qi_med = 0),
     type = "response"
-  ) %>% mutate(outcome = "Uncertain benefit")
+  ) %>% mutate(outcome = "No benefit")
 ) %>%
   select(outcome, estimate, conf.low, conf.high) %>%
   mutate(outcome = factor(outcome, levels = c(
-    "Uncertain benefit", "Medical benefit", "Logistical benefit"
+    "No benefit", "Medical benefit", "Logistical benefit"
   )))
 
 
@@ -1322,11 +1386,11 @@ pred_out_drg <- bind_rows(
     reg_out_drg,
     variables = list(qi_log = 0, qi_med = 0),
     type = "response"
-  ) %>% mutate(outcome = "Uncertain benefit")
+  ) %>% mutate(outcome = "No benefit")
 ) %>%
   select(outcome, estimate, conf.low, conf.high) %>%
   mutate(outcome = factor(outcome, levels = c(
-    "Uncertain benefit", "Medical benefit", "Logistical benefit"
+    "No benefit", "Medical benefit", "Logistical benefit"
   )))
 
 
@@ -1428,8 +1492,8 @@ main_plots_out <- fig_out_d30 + plot_spacer() + fig_out_los + plot_spacer() + fi
 labels_plot_out <- ggplot(
   transform(
     data.frame(outcome = factor(
-      c("Uncertain benefit", "*Medical benefit", "*Logistical benefit"),
-      levels = c("Uncertain benefit", "*Medical benefit", "*Logistical benefit")
+      c("No benefit", "*Medical benefit", "*Logistical benefit"),
+      levels = c("No benefit", "*Medical benefit", "*Logistical benefit")
     )),
     y = c(0.26, 0.54, 0.82)
   ),
@@ -1445,8 +1509,14 @@ figure7 <- labels_plot_out + main_plots_out +
   plot_layout(ncol = 2, widths = c(0.15, 1))
 
 
-plot(figure7)
-ggsave("./Figures/fig7_outcome prediction.png", width = 3000, height = 2000, units = "px", dpi = 300, bg = "white")
+ggsave(
+  filename = "./Figures/Figure7 - outcome prediction.png",
+  plot = figure7,
+  width = 10,
+  units = "in",
+  dpi = 300,
+  bg = "white"
+)
 
 #Cleanup
 rm(reg_vars_def, reg_vars_nmi)
@@ -1635,8 +1705,7 @@ rm(t1_overall, t1_mtype, t1_transport, t1_sex, t1_age, t1_naca, t1_out, t1_d30) 
 
 ## Appendix Figures ----
 
-
-### eFigure 2: Detalied benefit descriptions ----
+### sFigure 2: Detalied benefit descriptions ----
 
 #Logistical benefit
 benefit_log <- ComplexUpset::upset(
@@ -1662,13 +1731,7 @@ benefit_log <- ComplexUpset::upset(
   
   matrix = ComplexUpset::intersection_matrix(
     geom = geom_point(shape = "circle filled", size = 3)
-  ) +
-    
-    scale_color_manual(
-      values = logistic_colors,
-      breaks = c("Time benefit", "Inaccessible"),
-      guide  = "none"
-    ),
+  ),
   
   queries = list(
     ComplexUpset::upset_query(
@@ -1685,9 +1748,7 @@ benefit_log <- ComplexUpset::upset(
   
   base_annotations = setNames(
     list(
-      ComplexUpset::intersection_size(
-        text = list(aes(label = after_stat(count)))
-      )
+      ComplexUpset::intersection_size()
     ),
     paste0("Logistical benefit n = ", scales::comma(nrow(study_data %>% filter(qi_logistical_benefit == "Yes"))))
   )
@@ -1731,15 +1792,7 @@ benefit_med <- ComplexUpset::upset(
   
   matrix = ComplexUpset::intersection_matrix(
     geom = geom_point(shape = "circle filled", size = 3)
-  ) +
-    scale_color_manual(
-      values = medical_colors,
-      breaks = c("HEMS procedures",
-                 "Other procedures",
-                 "Defer treatment",
-                 "Difficult situation"),
-      guide  = "none"
-    ),
+  ),
   
   queries = list(
     ComplexUpset::upset_query(set = "HEMS procedures",     fill = medical_colors[["HEMS procedures"]],     color = medical_colors[["HEMS procedures"]]),
@@ -1750,9 +1803,7 @@ benefit_med <- ComplexUpset::upset(
   
   base_annotations = setNames(
     list(
-      ComplexUpset::intersection_size(
-        text = list(aes(label = after_stat(count)))
-      )
+      ComplexUpset::intersection_size()
     ),
     paste0("Medical benefit n = ", scales::comma(nrow(study_data %>% filter(qi_medical_benefit == "Yes"))))
   )
@@ -1772,7 +1823,7 @@ benefit_med <- ComplexUpset::upset(
 
 
 #Combined plot
-aFig2 <- plot_grid(
+sFigure2 <- plot_grid(
   benefit_log, benefit_med,
   ncol = 1, align = "v",
   labels = c("a)", "b)"),
@@ -1781,9 +1832,15 @@ aFig2 <- plot_grid(
   hjust = 0, vjust = 1
 )
 
-plot(aFig2)
+ggsave(
+  filename = "./Figures/sFigure2 - benefit details.png",
+  plot = sFigure2,
+  width = 10,
+  units = "in",
+  dpi = 300,
+  bg = "white"
+)
 
-ggsave("./Figures/@fig2_benefit_details.png", width = 3000, height = 2000, units = "px", dpi = 300, bg = "white")
 
 rm(benefit_log, benefit_med)
 
@@ -1796,14 +1853,13 @@ aT0_overall <- study_data %>%
   summarise(n_log = sum(qi_logistical_benefit == "Yes", na.rm = TRUE),
             n_med = sum(qi_medical_benefit == "Yes", na.rm = TRUE),
             n_int = sum(qi_logistical_benefit == "Yes" & qi_medical_benefit == "Yes", na.rm = TRUE),
-            n_unc = sum(
+            n_no = sum(
               (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)) &
                 (qi_medical_benefit    != "Yes" | is.na(qi_medical_benefit)) &
                 (qi_logistical_benefit == "No" | qi_medical_benefit == "No") &
                 !(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit)),
               na.rm = TRUE
             ),
-            n_na = sum(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit), na.rm = TRUE),
             total = n()) %>% 
   mutate(category = as.character("Overall"))
 
@@ -1837,14 +1893,13 @@ aT2a <- study_data %>%
                    summarise(n_log = sum(qi_logistical_benefit == "Yes", na.rm = TRUE),
                              n_med = sum(qi_medical_benefit == "Yes", na.rm = TRUE),
                              n_int = sum(qi_logistical_benefit == "Yes" & qi_medical_benefit == "Yes", na.rm = TRUE),
-                             n_unc = sum(
+                             n_no = sum(
                                (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)) &
                                  (qi_medical_benefit    != "Yes" | is.na(qi_medical_benefit)) &
                                  (qi_logistical_benefit == "No" | qi_medical_benefit == "No") &
                                  !(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit)),
                                na.rm = TRUE
                              ),
-                             n_na = sum(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit), na.rm = TRUE),
                              total = n()) %>% 
                    mutate(category = as.character(hm_type_cat)) %>% 
                    select(-hm_type_cat) %>% 
@@ -1856,14 +1911,13 @@ aT2b <- study_data %>%
   summarise(n_log = sum(qi_logistical_benefit == "Yes", na.rm = TRUE),
             n_med = sum(qi_medical_benefit == "Yes", na.rm = TRUE),
             n_int = sum(qi_logistical_benefit == "Yes" & qi_medical_benefit == "Yes", na.rm = TRUE),
-            n_unc = sum(
+            n_no = sum(
               (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)) &
                 (qi_medical_benefit    != "Yes" | is.na(qi_medical_benefit)) &
                 (qi_logistical_benefit == "No" | qi_medical_benefit == "No") &
                 !(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit)),
               na.rm = TRUE
             ),
-            n_na = sum(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit), na.rm = TRUE),
             total = n()) %>% 
   mutate(category = as.character(hm_vessel)) %>% 
   select(-hm_vessel) %>% 
@@ -1875,14 +1929,13 @@ aT2c <- study_data %>%
   summarise(n_log = sum(qi_logistical_benefit == "Yes", na.rm = TRUE),
             n_med = sum(qi_medical_benefit == "Yes", na.rm = TRUE),
             n_int = sum(qi_logistical_benefit == "Yes" & qi_medical_benefit == "Yes", na.rm = TRUE),
-            n_unc = sum(
+            n_no = sum(
               (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)) &
                 (qi_medical_benefit    != "Yes" | is.na(qi_medical_benefit)) &
                 (qi_logistical_benefit == "No" | qi_medical_benefit == "No") &
                 !(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit)),
               na.rm = TRUE
             ),
-            n_na = sum(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit), na.rm = TRUE),
             total = n()) %>% 
   mutate(category = as.character(hp_naca_gr)) %>% 
   select(-hp_naca_gr)
@@ -1899,14 +1952,13 @@ aT2d <- study_data %>%
   summarise(n_log = sum(qi_logistical_benefit == "Yes", na.rm = TRUE),
             n_med = sum(qi_medical_benefit == "Yes", na.rm = TRUE),
             n_int = sum(qi_logistical_benefit == "Yes" & qi_medical_benefit == "Yes", na.rm = TRUE),
-            n_unc = sum(
+            n_no = sum(
               (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)) &
                 (qi_medical_benefit    != "Yes" | is.na(qi_medical_benefit)) &
                 (qi_logistical_benefit == "No" | qi_medical_benefit == "No") &
                 !(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit)),
               na.rm = TRUE
             ),
-            n_na = sum(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit), na.rm = TRUE),
             total = n()) %>% 
   mutate(category = as.character(proc)) %>% 
   select(-proc)
@@ -1923,14 +1975,13 @@ aT3 <- bind_rows(aT0_overall,
                    summarise(n_log = sum(qi_logistical_benefit == "Yes", na.rm = TRUE),
                              n_med = sum(qi_medical_benefit == "Yes", na.rm = TRUE),
                              n_int = sum(qi_logistical_benefit == "Yes" & qi_medical_benefit == "Yes", na.rm = TRUE),
-                             n_unc = sum(
+                             n_no = sum(
                                (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)) &
                                  (qi_medical_benefit    != "Yes" | is.na(qi_medical_benefit)) &
                                  (qi_logistical_benefit == "No" | qi_medical_benefit == "No") &
                                  !(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit)),
                                na.rm = TRUE
                              ),
-                             n_na = sum(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit), na.rm = TRUE),
                              total = n()) %>% 
                    mutate(category = as.character(hp_dia_3)) %>% 
                    select(-hp_dia_3) %>% 
@@ -1998,17 +2049,17 @@ aT7a <- study_data %>%
   mutate(
     qi_log = ifelse(qi_logistical_benefit == "Yes", 1, 0) %>% replace_na(0),
     qi_med = ifelse(qi_medical_benefit == "Yes", 1, 0) %>% replace_na(0),
-    qi_unc  = ifelse(qi_log == 0 & qi_med == 0, 1, 0)
+    qi_no  = ifelse(qi_log == 0 & qi_med == 0, 1, 0)
   ) %>%
   reframe(
-    outcome = c("Logistical benefit", "Medical benefit", "Uncertain benefit"),
+    outcome = c("Logistical benefit", "Medical benefit", "No benefit"),
     total   = n(),
     cases   = c(sum(qi_log),
                 sum(qi_med),
-                sum(qi_unc)),
+                sum(qi_no)),
     d30_rate = c(sum(qi_log == 1 & pat_d30 == 1)/sum(qi_log),
                  sum(qi_med == 1 & pat_d30 == 1)/sum(qi_med),
-                 sum(qi_unc  == 1 & pat_d30 == 1)/sum(qi_unc))
+                 sum(qi_no  == 1 & pat_d30 == 1)/sum(qi_no))
   ) %>% 
   left_join(pred_out_d30, by = "outcome")
   
@@ -2022,17 +2073,17 @@ aT7b <- study_data %>%
   mutate(
     qi_log = ifelse(qi_logistical_benefit == "Yes", 1, 0) %>% replace_na(0),
     qi_med = ifelse(qi_medical_benefit == "Yes", 1, 0) %>% replace_na(0),
-    qi_unc  = ifelse(qi_log == 0 & qi_med == 0, 1, 0)
+    qi_no  = ifelse(qi_log == 0 & qi_med == 0, 1, 0)
   ) %>%
   reframe(
-    outcome = c("Logistical benefit", "Medical benefit", "Uncertain benefit"),
+    outcome = c("Logistical benefit", "Medical benefit", "No benefit"),
     total   = n(),
     cases   = c(sum(qi_log),
                 sum(qi_med),
-                sum(qi_unc)),
+                sum(qi_no)),
     mean_los     = c(mean(hs_days[qi_log == 1], na.rm = TRUE),
                 mean(hs_days[qi_med == 1], na.rm = TRUE),
-                mean(hs_days[qi_unc  == 1], na.rm = TRUE))
+                mean(hs_days[qi_no  == 1], na.rm = TRUE))
   ) %>% 
   left_join(pred_out_los, by = "outcome")
 
@@ -2046,17 +2097,17 @@ aT7c <- study_data %>%
   mutate(
     qi_log = ifelse(qi_logistical_benefit == "Yes", 1, 0) %>% replace_na(0),
     qi_med = ifelse(qi_medical_benefit == "Yes", 1, 0) %>% replace_na(0),
-    qi_unc  = ifelse(qi_log == 0 & qi_med == 0, 1, 0)
+    qi_no  = ifelse(qi_log == 0 & qi_med == 0, 1, 0)
   ) %>%
   reframe(
-    outcome = c("Logistical benefit", "Medical benefit", "Uncertain benefit"),
+    outcome = c("Logistical benefit", "Medical benefit", "No benefit"),
     total   = n(),
     cases   = c(sum(qi_log),
                 sum(qi_med),
-                sum(qi_unc)),
+                sum(qi_no)),
     mean_drg  = c(mean(hs_drg_points[qi_log == 1], na.rm = TRUE),
                   mean(hs_drg_points[qi_med == 1], na.rm = TRUE),
-                  mean(hs_drg_points[qi_unc  == 1], na.rm = TRUE))
+                  mean(hs_drg_points[qi_no  == 1], na.rm = TRUE))
   ) %>% 
   left_join(pred_out_drg, by = "outcome")
 
@@ -2064,11 +2115,86 @@ write_xlsx(aT7c, "./Tables/Raw tables/@t7c_raw.xlsx")
 rm(pred_out_d30, pred_out_los, pred_out_drg)
 
 
-#Cleanup
+# Extra ----
+
+## Benefit distribution ----
+
+benefit_dist <- study_data %>% 
+  summarise(
+    n         = n(),
+    log_all   = sum(qi_logistical_benefit == "Yes", na.rm=TRUE),
+    med_all   = sum(qi_medical_benefit == "Yes", na.rm=TRUE),
+    dbl       = sum(qi_logistical_benefit == "Yes" & qi_medical_benefit == "Yes", na.rm=TRUE),
+    log_exc   = sum(qi_logistical_benefit == "Yes" & (qi_medical_benefit != "Yes" | is.na(qi_medical_benefit)), na.rm=TRUE),
+    med_exc   = sum(qi_medical_benefit == "Yes" & (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)), na.rm=TRUE),
+    no        = sum((qi_logistical_benefit == "No" | is.na(qi_logistical_benefit)) & (qi_medical_benefit == "No" | is.na(qi_medical_benefit)), na.rm=TRUE),
+  )
+
+write_xlsx(age_dist, "./Tables/Raw tables/benefit_dist.xlsx")
+
+medical_dist <- study_data %>%
+  filter(qi_medical_benefit == "Yes" & (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit))) %>%
+  group_by(hm_vessel) %>%
+  summarise(n = n())
+
+
+## Age distribution ----
+
+age_dist <- study_data %>% 
+  summarise(
+    n      = sum(!is.na(hp_age)),
+    q25    = round(quantile(hp_age, 0.25, na.rm = TRUE)),
+    median = round(median(hp_age, na.rm = TRUE)),
+    q75    = round(quantile(hp_age, 0.75, na.rm = TRUE))
+  )
+
+write_xlsx(age_dist, "./Tables/Raw tables/age_dist.xlsx")
+
+
+## Benefit assessment per physician ----
+
+#Numeric summary
+physician_num <- study_data %>% 
+  group_by(hm_doc_label) %>%
+  summarise(n = n(),
+            log = sum(qi_logistical_benefit == "Yes", na.rm = TRUE),
+            med = sum(qi_medical_benefit == "Yes", na.rm = TRUE),
+            no = sum((qi_logistical_benefit == "No" | is.na(qi_logistical_benefit)) & (qi_medical_benefit == "No" | is.na(qi_medical_benefit)))
+            )
+
+write_xlsx(physician_num, "./Tables/Raw tables/physician_summary.xlsx")
+
+#Median, Q1 and Q3 per benefit category
+physician_summary <- study_data %>%
+  group_by(hm_doc_label) %>%
+  summarise(
+    n   = n(),
+    log = 100 * mean(qi_logistical_benefit == "Yes", na.rm = TRUE),
+    med = 100 * mean(qi_medical_benefit == "Yes",     na.rm = TRUE),
+    no  = 100 * mean(
+      (qi_logistical_benefit == "No"  | is.na(qi_logistical_benefit)) &
+        (qi_medical_benefit     == "No" | is.na(qi_medical_benefit)),
+      na.rm = TRUE
+    )
+  ) %>%
+  summarise(
+    across(
+      c(log, med, no),
+      list(
+        median = ~round(median(.x, na.rm = TRUE)),
+        q1     = ~round(quantile(.x, 0.25, na.rm = TRUE)),
+        q3     = ~round(quantile(.x, 0.75, na.rm = TRUE))
+      ),
+      .names = "{.col}_{.fn}"
+    )
+  )
+
+write_xlsx(physician_summary, "./Tables/Raw tables/physician_variation.xlsx")
+
+  
+# Cleanup ----
 rm(aT0_overall)
 rm(benefit_colors, logistic_colors, medical_colors)
 rm(benefit_figA, benefit_figB)
-
-
 
 
