@@ -1,8 +1,8 @@
 
-# title: "HEMS Benefit Data analysis"
+# title: "HEMS Contribution Data analysis"
 # author: "Lars Eide Næss"
 # contact: "lars.eide.ness@stolav.no"
-# revision date: 2026-03-23
+# revision date: 2026-03-27
 
 # Preparation ----
 ## Setup ----
@@ -30,18 +30,18 @@ study_data <- hemsqi %>% filter(included == 1)
 ## Analysis configuration ---- 
 
 ### Colors ----
-benefit_colors <- c(
-  "Logistical benefit" = "#91beff",
-  "Medical benefit" = "#ffe087",
-  "No benefit" = "#B5B5B5"
+contribution_colors <- c(
+  "Logistical contribution" = "#91beff",
+  "Clinical contribution" = "#ffe087",
+  "No contribution" = "#B5B5B5"
   )
 
-logistic_colors <- c(
+Logistic_colors <- c(
   "Time benefit" = "#ffb3ba",
   "Inaccessible" = "#baffc9"
   )
 
-medical_colors <- c(
+clinical_colors <- c(
   "HEMS procedures" = "#ffb3ba",
   "Other procedures" = "#bae1ff",
   "Defer treatment" = "#ffffba",
@@ -53,34 +53,34 @@ reg_vars_def  <- "ns(age,4) + year + season + weekpart + shift + gender + doc"
 reg_vars_nmi  <- "ns(age,4) + year + season + weekpart + shift + gender + doc + nmi"
 
 ### Analysis functions ----
-benefit_figA <- function(data, scenario_label, filter_expr) {
+contribution_figA <- function(data, scenario_label, filter_expr) {
   data %>%
     filter({{ filter_expr }}) %>%
     summarise(
-      log = sum(qi_logistical_benefit == "Yes", na.rm = TRUE),
-      med = sum(qi_medical_benefit == "Yes", na.rm = TRUE),
-      dbl = sum(qi_logistical_benefit == "Yes" & qi_medical_benefit == "Yes", na.rm = TRUE),
+      log = sum(qi_logistical_contribution == "Yes", na.rm = TRUE),
+      cli = sum(qi_clinical_contribution == "Yes", na.rm = TRUE),
+      dbl = sum(qi_logistical_contribution == "Yes" & qi_clinical_contribution == "Yes", na.rm = TRUE),
       no  = sum(
-        (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)) &
-          (qi_medical_benefit    != "Yes" | is.na(qi_medical_benefit)) &
-          (qi_logistical_benefit == "No" | qi_medical_benefit == "No") &
-          !(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit)),
+        (qi_logistical_contribution != "Yes" | is.na(qi_logistical_contribution)) &
+          (qi_clinical_contribution    != "Yes" | is.na(qi_clinical_contribution)) &
+          (qi_logistical_contribution == "No" | qi_clinical_contribution == "No") &
+          !(is.na(qi_logistical_contribution) & is.na(qi_clinical_contribution)),
         na.rm = TRUE
       )
     ) %>%
     {
       log <- .$log
-      med <- .$med
+      cli <- .$cli
       dbl <- .$dbl
       no  <- .$no
-      total <- log + med + no - dbl
+      total <- log + cli + no - dbl
       dbl_pct <- round(dbl / total * 100)
       
       tibble(
         scenario = scenario_label,
-        category = c("Logistical benefit", "Medical benefit", "No benefit"),
-        xmin = c(0, log - dbl, log + med - dbl),
-        xmax = c(log, log + med - dbl, log + med - dbl + no),
+        category = c("Logistical contribution", "Clinical contribution", "No contribution"),
+        xmin = c(0, log - dbl, log + cli - dbl),
+        xmax = c(log, log + cli - dbl, log + cli - dbl + no),
         ymin = c(0.29, 0.31, 0.30),
         ymax = c(0.59, 0.61, 0.60),
         alpha = 0.4,
@@ -91,34 +91,34 @@ benefit_figA <- function(data, scenario_label, filter_expr) {
 }
 
 
-benefit_figB <- function(data, scenario_label, filter_expr) {
+contribution_figB <- function(data, scenario_label, filter_expr) {
   data %>%
     filter({{ filter_expr }}) %>%
     summarise(
-      log = sum(qi_logistical_benefit == "Yes", na.rm = TRUE),
-      med = sum(qi_medical_benefit == "Yes", na.rm = TRUE),
-      dbl = sum(qi_logistical_benefit == "Yes" & qi_medical_benefit == "Yes", na.rm = TRUE),
+      log = sum(qi_logistical_contribution == "Yes", na.rm = TRUE),
+      cli = sum(qi_clinical_contribution == "Yes", na.rm = TRUE),
+      dbl = sum(qi_logistical_contribution == "Yes" & qi_clinical_contribution == "Yes", na.rm = TRUE),
       no  = sum(
-        (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)) &
-          (qi_medical_benefit    != "Yes" | is.na(qi_medical_benefit)) &
-          (qi_logistical_benefit == "No" | qi_medical_benefit == "No") &
-          !(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit)),
+        (qi_logistical_contribution != "Yes" | is.na(qi_logistical_contribution)) &
+          (qi_clinical_contribution    != "Yes" | is.na(qi_clinical_contribution)) &
+          (qi_logistical_contribution == "No" | qi_clinical_contribution == "No") &
+          !(is.na(qi_logistical_contribution) & is.na(qi_clinical_contribution)),
         na.rm = TRUE
       )
     ) %>%
     {
       log <- .$log
-      med <- .$med
+      cli <- .$cli
       dbl <- .$dbl
       no  <- .$no
-      total <- log + med + no - dbl
+      total <- log + cli + no - dbl
       dbl_pct <- round(dbl / total * 100)
       
       tibble(
         scenario = scenario_label,
-        category = c("Logistical benefit", "Medical benefit", "No benefit"),
-        xmin = c(0, log - dbl, log + med - dbl),
-        xmax = c(log, log + med - dbl, log + med - dbl + no),
+        category = c("Logistical contribution", "Clinical contribution", "No contribution"),
+        xmin = c(0, log - dbl, log + cli - dbl),
+        xmax = c(log, log + cli - dbl, log + cli - dbl + no),
         ymin = c(0.3, 0.4, 0.35),
         ymax = c(0.6, 0.65, 0.62),
         alpha = 0.4,
@@ -444,16 +444,16 @@ rsvg::rsvg_png(
 rm(fig2_data, fig2)
 
 
-### Figure 3: Association with benefit I ----
+### Figure 3: Association with contribution I ----
 
-fig3a_data <- benefit_figA(study_data, "Overall benefit", TRUE) %>%
+fig3a_data <- contribution_figA(study_data, "Overall contribution", TRUE) %>%
   mutate(
     category = factor(
       category,
       levels = c(
-        "Logistical benefit",
-        "Medical benefit",
-        "No benefit"
+        "Logistical contribution",
+        "Clinical contribution",
+        "No contribution"
       )
     )
   ) %>%
@@ -481,12 +481,12 @@ fig3a <- ggplot(fig3a_data) +
   geom_textbox(
     data = data.frame(
       x = 52, y = 0.90,
-      label = glue::glue("Both <b>logistical</b> and <b>medical</b> benefit <br> {fig3a_data$dbl_pct[1]}%")
+      label = glue::glue("Both <b>logistical</b> and <br> <b>clinical</b> contribution <br> {fig3a_data$dbl_pct[1]}%")
     ),
     aes(x = x, y = y, label = label),
     box.colour = "black",
     fill = "white",
-    width = unit(3, "cm"),
+    width = NULL,
     halign = 0.5,
     valign = 0.5,
     hjust = 0,
@@ -502,16 +502,16 @@ fig3a <- ggplot(fig3a_data) +
   )+
   annotate("text", x = -Inf, y = Inf, label = "a)", 
            hjust = -0.2, vjust = 1.2, fontface = "plain", size = 4)+
-  scale_fill_manual(values = adjustcolor(benefit_colors, alpha.f = 0.7)) +
+  scale_fill_manual(values = adjustcolor(contribution_colors, alpha.f = 0.7)) +
   scale_alpha_identity() +
   scale_x_continuous(labels = scales::percent_format(scale = 1), limits = c(0, 100)) +
-  scale_y_continuous(breaks = c(1.5), labels = c("Overall benefit")) +
+  scale_y_continuous(breaks = c(1.5), labels = c("Overall contribution")) +
   labs(
     title = "Overall",
     x = "Proportion (%)",
     y = NULL,
-    fill = "Benefit",
-    caption = paste0("Overall benefit (n = ", unique(fig3a_data$total), ")")
+    fill = "Contribution",
+    caption = paste0("Overall contribution (n = ", unique(fig3a_data$total), ")")
   )+
   theme_void() +
   theme(
@@ -528,18 +528,18 @@ fig3a <- ggplot(fig3a_data) +
 
 
 fig3b_data <- bind_rows(
-  benefit_figB(study_data, "Primary mission", hm_type_cat == "Primary"),
-  benefit_figB(study_data, "Secondary mission", hm_type_cat == "Secondary"),
-  benefit_figB(study_data, "Helicopter", hm_vessel == "Helicopter"),
-  benefit_figB(study_data, "Rapid response car", hm_vessel == "RRC")
+  contribution_figB(study_data, "Primary mission contribution", hm_type_cat == "Primary"),
+  contribution_figB(study_data, "Secondary mission contribution", hm_type_cat == "Secondary"),
+  contribution_figB(study_data, "Helicopter contribution", hm_vessel == "Helicopter"),
+  contribution_figB(study_data, "Rapid response car contribution", hm_vessel == "RRC")
   ) %>%
   mutate(
     category = factor(
       category,
       levels = c(
-        "Logistical benefit",
-        "Medical benefit",
-        "No benefit"
+        "Logistical contribution",
+        "Clinical contribution",
+        "No contribution"
       )
     )
   ) %>%
@@ -562,7 +562,7 @@ fig3b_data <- bind_rows(
 
 
 
-fig3b <- ggplot(fig3b_data %>% filter(!(scenario == "Rapid response car" & category == "Logistical benefit"))) +
+fig3b <- ggplot(fig3b_data %>% filter(!(scenario == "Rapid response car contribution" & category == "Logistical contribution"))) +
   geom_rect(aes(xmin = xmin_pct, xmax = xmax_pct, ymin = y + ymin, ymax = y + ymax, fill = category, alpha = alpha),
             color = "black") +
   geom_hline(yintercept = 3.0, linetype = "dashed", color = "black") +
@@ -571,12 +571,12 @@ fig3b <- ggplot(fig3b_data %>% filter(!(scenario == "Rapid response car" & categ
   geom_textbox(
     data = data.frame(
       x = 54, y = 4.25,
-      label = glue::glue("Both <b>logistical</b> and <b>medical</b> benefit {fig3b_data$dbl_pct[1]}%")
+      label = glue::glue("Both <b>logistical</b> and <b>clinical</b> contribution {fig3b_data$dbl_pct[1]}%")
     ),
     aes(x = x, y = y, label = label),
     box.colour = "black",
     fill = "white",
-    width = unit(4.05, "cm"),
+    width = NULL,
     height = unit(0.5, "cm"),
     halign = 0.5,
     valign = 0.5,
@@ -594,12 +594,12 @@ fig3b <- ggplot(fig3b_data %>% filter(!(scenario == "Rapid response car" & categ
   geom_textbox(
     data = data.frame(
       x = 54, y = 3.25,
-      label = glue::glue("Both <b>logistical</b> and <b>medical</b> benefit {fig3b_data$dbl_pct[5]}%")
+      label = glue::glue("Both <b>logistical</b> and <b>clinical</b> contribution {fig3b_data$dbl_pct[5]}%")
     ),
     aes(x = x, y = y, label = label),
     box.colour = "black",
     fill = "white",
-    width = unit(4.05, "cm"),
+    width = NULL,
     height = unit(0.5, "cm"),
     halign = 0.5,
     valign = 0.5,
@@ -617,12 +617,12 @@ fig3b <- ggplot(fig3b_data %>% filter(!(scenario == "Rapid response car" & categ
   geom_textbox(
     data = data.frame(
       x = 54, y = 2.2,
-      label = glue::glue("Both <b>logistical</b> and <b>medical</b> benefit {fig3b_data$dbl_pct[9]}%")
+      label = glue::glue("Both <b>logistical</b> and <b>clinical</b> contribution {fig3b_data$dbl_pct[9]}%")
     ),
     aes(x = x, y = y, label = label),
     box.colour = "black",
     fill = "white",
-    width = unit(4.05, "cm"),
+    width = NULL,
     height = unit(0.5, "cm"),
     halign = 0.5,
     valign = 0.5,
@@ -637,7 +637,7 @@ fig3b <- ggplot(fig3b_data %>% filter(!(scenario == "Rapid response car" & categ
     curvature = -0.3,
     color = "black"
   )+
-  scale_fill_manual(values = adjustcolor(benefit_colors, alpha.f = 0.7)) +
+  scale_fill_manual(values = adjustcolor(contribution_colors, alpha.f = 0.7)) +
   scale_alpha_identity() +
   scale_x_continuous(labels = scales::percent_format(scale = 1), limits = c(0, 100))+
   scale_y_continuous(
@@ -654,10 +654,10 @@ fig3b <- ggplot(fig3b_data %>% filter(!(scenario == "Rapid response car" & categ
   annotate("text", x = -Inf, y = Inf, label = "b)", 
            hjust = -0.2, vjust = 1.2, fontface = "plain", size = 4)+
   labs(
-    title = "Assessment of benefit",
+    title = "Assessment of contribution",
     x = "Proportion (%)",
     y = NULL,
-    fill = "Benefit"
+    fill = "Contribution"
   ) +
   theme_void() +
   theme(
@@ -680,7 +680,7 @@ figure3 <- fig3a|fig3b + plot_layout(guides = "collect") &
         legend.justification = "center")
 
 ggsave(
-  filename = "./Figures/Figure3 - benefit association I.png",
+  filename = "./Figures/Figure3 - contribution association I.png",
   plot = figure3,
   width = 10,
   units = "in",
@@ -693,22 +693,22 @@ rm(fig3a_data, fig3b_data, fig3a, fig3b)
 
 
 
-### Figure 4: Association with benefit II ----
+### Figure 4: Association with contribution II ----
 
 fig4a_data <- bind_rows(
-  benefit_figB(study_data, "NACA 1-3", hp_naca <= 3),
-  benefit_figB(study_data, "NACA 4", hp_naca == 4),
-  benefit_figB(study_data, "NACA 5", hp_naca == 5),
-  benefit_figB(study_data, "NACA 6", hp_naca == 6),
-  benefit_figB(study_data, "NACA 7", hp_naca == 7)
+  contribution_figB(study_data, "NACA 1-3", hp_naca <= 3),
+  contribution_figB(study_data, "NACA 4", hp_naca == 4),
+  contribution_figB(study_data, "NACA 5", hp_naca == 5),
+  contribution_figB(study_data, "NACA 6", hp_naca == 6),
+  contribution_figB(study_data, "NACA 7", hp_naca == 7)
 ) %>%
   mutate(
     category = factor(
       category,
       levels = c(
-        "Logistical benefit",
-        "Medical benefit",
-        "No benefit"
+        "Logistical contribution",
+        "Clinical contribution",
+        "No contribution"
       )
     )
   ) %>%
@@ -736,7 +736,7 @@ fig4a <- ggplot(fig4a_data) +
             color = "black") +
   geom_text(aes(x = label_pos, y = y_label, label = label_text),
             size = 2, color = "black") +
-  scale_fill_manual(values = adjustcolor(benefit_colors, alpha.f = 0.7)) +
+  scale_fill_manual(values = adjustcolor(contribution_colors, alpha.f = 0.7)) +
   scale_alpha_identity() +
   scale_x_continuous(labels = scales::percent_format(scale = 1), limits = c(0, 100))+
   scale_y_continuous(
@@ -753,10 +753,10 @@ fig4a <- ggplot(fig4a_data) +
   annotate("text", x = -Inf, y = Inf, label = "a)", 
            hjust = -0.2, vjust = 1.2, fontface = "plain", size = 4)+
   labs(
-    title = "Assessment of benefit",
+    title = "Assessment of contribution",
     x = "Proportion (%)",
     y = NULL,
-    fill = "Benefit"
+    fill = "Contribution"
   ) +
   theme_void() +
   theme(
@@ -775,19 +775,19 @@ fig4a <- ggplot(fig4a_data) +
 
 
 fig4b_data <- bind_rows(
-  benefit_figB(study_data, "0 advanced medical procedures", hp_proc_sum == 0),
-  benefit_figB(study_data, "1 advanced medical procedure", hp_proc_sum == 1),
-  benefit_figB(study_data, "2 advanced medical procedures", hp_proc_sum == 2),
-  benefit_figB(study_data, "3-4 advanced medical procedures", hp_proc_sum == 3 | hp_proc_sum == 4),
-  benefit_figB(study_data, "5+ advanced medical procedures", hp_proc_sum >= 5)
+  contribution_figB(study_data, "0 advanced medical procedures", hp_proc_sum == 0),
+  contribution_figB(study_data, "1 advanced medical procedure", hp_proc_sum == 1),
+  contribution_figB(study_data, "2 advanced medical procedures", hp_proc_sum == 2),
+  contribution_figB(study_data, "3-4 advanced medical procedures", hp_proc_sum == 3 | hp_proc_sum == 4),
+  contribution_figB(study_data, "5+ advanced medical procedures", hp_proc_sum >= 5)
 ) %>%
   mutate(
     category = factor(
       category,
       levels = c(
-        "Logistical benefit",
-        "Medical benefit",
-        "No benefit"
+        "Logistical contribution",
+        "Clinical contribution",
+        "No contribution"
       )
     )
   ) %>%
@@ -815,7 +815,7 @@ fig4b <- ggplot(fig4b_data) +
             color = "black") +
   geom_text(aes(x = label_pos, y = y_label, label = label_text),
             size = 2, color = "black") +
-  scale_fill_manual(values = adjustcolor(benefit_colors, alpha.f = 0.7)) +
+  scale_fill_manual(values = adjustcolor(contribution_colors, alpha.f = 0.7)) +
   scale_alpha_identity() +
   scale_x_continuous(labels = scales::percent_format(scale = 1), limits = c(0, 100))+
   scale_y_continuous(
@@ -832,10 +832,10 @@ fig4b <- ggplot(fig4b_data) +
   annotate("text", x = -Inf, y = Inf, label = "b)", 
            hjust = -0.2, vjust = 1.2, fontface = "plain", size = 4)+
   labs(
-    title = "Assessment of benefit",
+    title = "Assessment of contribution",
     x = "Proportion (%)",
     y = NULL,
-    fill = "Benefit"
+    fill = "contribution"
   ) +
   theme_void() +
   theme(
@@ -857,7 +857,7 @@ figure4 <- fig4a/fig4b
 #figure4 <- ((fig4a|fig4b)/fig4c)
 
 ggsave(
-  filename = "./Figures/Figure4 - benefit association II.png",
+  filename = "./Figures/Figure4 - contribution association II.png",
   plot = figure4,
   width = 10,
   units = "in",
@@ -868,21 +868,21 @@ ggsave(
 #Cleanup
 rm(fig4a_data, fig4a, fig4b_data, fig4b)
 
-### Figure 5: Regression: Benefit prediction - Descriptives ----
+### Figure 5: Regression: Contribution prediction - Descriptives ----
 
-# Regression data for prediction of benefit
+# Regression data for prediction of contribution
 regdata_pred <- study_data %>%
-  filter(!is.na(qi_logistical_benefit) | !is.na(qi_medical_benefit)) %>%
+  filter(!is.na(qi_logistical_contribution) | !is.na(qi_clinical_contribution)) %>%
   transmute(
     
-    qi_log = ifelse(qi_logistical_benefit == "Yes", 1, 0) %>% replace_na(0),
+    qi_log = ifelse(qi_logistical_contribution == "Yes", 1, 0) %>% replace_na(0),
     
-    qi_med = ifelse(qi_medical_benefit == "Yes", 1, 0) %>% replace_na(0),
+    qi_cli = ifelse(qi_clinical_contribution == "Yes", 1, 0) %>% replace_na(0),
     
     qi_no = ifelse(
-      (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)) &
-        (qi_medical_benefit    != "Yes" | is.na(qi_medical_benefit)) &
-        (qi_logistical_benefit == "No" | qi_medical_benefit == "No"),
+      (qi_logistical_contribution != "Yes" | is.na(qi_logistical_contribution)) &
+        (qi_clinical_contribution    != "Yes" | is.na(qi_clinical_contribution)) &
+        (qi_logistical_contribution == "No" | qi_clinical_contribution == "No"),
       1, 0
     ),
     
@@ -952,7 +952,7 @@ reg_log_age <- glm(as.formula(paste("qi_log ~",
                    data = regdata_pred,
                    family = "binomial")
 
-reg_med_age <- glm(as.formula(paste("qi_med ~",
+reg_cli_age <- glm(as.formula(paste("qi_cli ~",
                                     reg_vars_def)),
                    data = regdata_pred,
                    family = "binomial")
@@ -971,10 +971,10 @@ pred_log_age <- avg_predictions(reg_log_age,
                                 transform = plogis,
                                 by = "age")
 
-pred_med_age <- avg_predictions(reg_med_age,
+pred_cli_age <- avg_predictions(reg_cli_age,
                                 newdata = datagrid(
                                   age = seq(0, 100, by = 2),
-                                  model = reg_med_age),
+                                  model = reg_cli_age),
                                 type = "link",
                                 transform = plogis,
                                 by = "age")
@@ -990,12 +990,12 @@ pred_no_age  <- avg_predictions(reg_no_age,
 #Combining prediction data
 preds_age <- bind_rows(
   pred_log_age %>% mutate(type = "log"),
-  pred_med_age %>% mutate(type = "med"),
+  pred_cli_age %>% mutate(type = "cli"),
   pred_no_age %>% mutate(type= "no")
   ) %>%
   select(type, age, estimate, conf.low, conf.high) %>%
   mutate(type = factor(type, levels = c(
-    "log", "med", "no"
+    "log", "cli", "no"
   ))) %>% 
   pivot_wider(names_from = type, values_from = c(estimate, conf.low, conf.high))
 
@@ -1005,11 +1005,11 @@ plot_log_age <- ggplot(pred_log_age,aes(x=age,y=estimate))+
   geom_line()+
   geom_ribbon(aes(ymin=conf.low,ymax=conf.high),
               alpha=.3,
-              fill = benefit_colors["Logistical benefit"]
+              fill = contribution_colors["Logistical contribution"]
               )+
   scale_y_continuous(limits = c(0, 1)) +
   labs(
-    title = "Logistical benefit",
+    title = "Logistical contribution",
     x = "Patient age (years)",
     y = "Predicted probability"
   ) +
@@ -1020,15 +1020,15 @@ plot_log_age <- ggplot(pred_log_age,aes(x=age,y=estimate))+
     axis.title.y = element_blank()
   )
 
-plot_med_age <- ggplot(pred_med_age,aes(x=age,y=estimate))+
+plot_cli_age <- ggplot(pred_cli_age,aes(x=age,y=estimate))+
   geom_line()+
   geom_ribbon(aes(ymin=conf.low,ymax=conf.high),
               alpha=.3,
-              fill = benefit_colors["Medical benefit"]
+              fill = contribution_colors["Clinical contribution"]
   )+
   scale_y_continuous(limits = c(0, 1)) +
   labs(
-    title = "Medical benefit",
+    title = "Clinical contribution",
     x = "Patient age (years)",
     y = "Predicted probability"
   ) +
@@ -1044,11 +1044,11 @@ plot_no_age <- ggplot(pred_no_age,aes(x=age,y=estimate))+
   geom_line()+
   geom_ribbon(aes(ymin=conf.low,ymax=conf.high),
               alpha=.3,
-              fill = benefit_colors["No benefit"]
+              fill = contribution_colors["No contribution"]
   )+
   scale_y_continuous(limits = c(0, 1)) +
   labs(
-    title = "No benefit",
+    title = "No contribution",
     x = "Patient age (years)",
     y = "Predicted probability",
   ) +
@@ -1061,9 +1061,9 @@ plot_no_age <- ggplot(pred_no_age,aes(x=age,y=estimate))+
 
 # Descriptives prediction
 reg_desc_log <- glm(as.formula(paste("qi_log ~", reg_vars_def)), data = regdata_pred, family = "binomial")
-reg_desc_med <- glm(as.formula(paste("qi_med ~", reg_vars_def)), data = regdata_pred, family = "binomial")
+reg_desc_cli <- glm(as.formula(paste("qi_cli ~", reg_vars_def)), data = regdata_pred, family = "binomial")
 reg_desc_no  <- glm(as.formula(paste("qi_no  ~", reg_vars_def)), data = regdata_pred, family = "binomial")
-reg_desc_models <- list("Logistical benefit" = reg_desc_log, "Medical benefit" = reg_desc_med, "No benefit" = reg_desc_no)
+reg_desc_models <- list("Logistical contribution" = reg_desc_log, "Clinical contribution" = reg_desc_cli, "No contribution" = reg_desc_no)
 
 #### Regresssion variables (descriptives) ----
 pred_vars_desc <- c("year", "season", "weekpart", "shift", "gender")
@@ -1083,7 +1083,7 @@ pred_desc <- map_dfr(names(reg_desc_models), function(name) {
 
 preds_desc <- pred_desc %>%
   select(var, outcome, estimate, conf.low, conf.high) %>%
-  mutate(outcome = factor(outcome, levels = c("Logistical benefit", "Medical benefit", "No benefit"))) %>% 
+  mutate(outcome = factor(outcome, levels = c("Logistical contribution", "Clinical contribution", "No contribution"))) %>% 
   pivot_wider(names_from = outcome, values_from = c(estimate, conf.low, conf.high))
 
 # Plot descriptives
@@ -1093,14 +1093,23 @@ plot_desc <- ggplot(pred_desc, aes(x = estimate, y = var)) +
                 orientation = "y",
                 width = 0.2,
                 alpha = 1.0) +
-  scale_color_manual(values = benefit_colors) +
+  
+  scale_color_manual(
+    values = contribution_colors,
+    breaks = c(
+      "No contribution",
+      "Clinical contribution",
+      "Logistical contribution"
+    )
+  )+
+
   scale_x_continuous(
     limits = c(NA, NA),
     breaks = seq(0, 1, by = 0.1)
   ) +
   scale_y_discrete(limits = rev) +
   labs(
-    title = "Predicted Probabilities of benefit assessment",
+    title = "Predicted Probabilities of contribution assessment",
     x = "Predicted probability",
     y = "Predictor"
   ) +
@@ -1121,14 +1130,14 @@ figure5 <- plot_grid(
     draw_label("Predicted probability", angle = 90, vjust = 0.5, hjust = 0.5, size = 10),
   plot_grid(
     plot_grid(
-      plot_log_age, plot_med_age, plot_no_age,
+      plot_log_age, plot_cli_age, plot_no_age,
       ncol = 1,
       align = "v",
       axis = "lr"
     ),
     plot_desc,
     ncol = 2,
-    rel_widths = c(1, 1.1),
+    rel_widths = c(1, 1.3),
     
     labels = c("a)", "b)"),
     label_size = 12,
@@ -1146,7 +1155,7 @@ figure5 <- plot_grid(
 )
 
 ggsave(
-  filename = "./Figures/Figure5 - benefit prediction I.png",
+  filename = "./Figures/Figure5 - contribution prediction I.png",
   plot = figure5,
   width = 10,
   units = "in",
@@ -1156,22 +1165,22 @@ ggsave(
 
 
 #Cleanup
-rm(reg_log_age, reg_med_age, reg_no_age)
-rm(pred_log_age, pred_med_age, pred_no_age)
+rm(reg_log_age, reg_cli_age, reg_no_age)
+rm(pred_log_age, pred_cli_age, pred_no_age)
 rm(reg_desc_models)
-rm(pred_desc, reg_desc_log, reg_desc_med, reg_desc_no)
-rm(plot_log_age, plot_med_age, plot_no_age, plot_desc)
+rm(pred_desc, reg_desc_log, reg_desc_cli, reg_desc_no)
+rm(plot_log_age, plot_cli_age, plot_no_age, plot_desc)
 rm(pred_vars_desc)
 
 
-### Figure 6: Regression: Benefit prediction - NMI ----
+### Figure 6: Regression: Contribution prediction - NMI ----
 
 #### Regression variables (nmi) ----
 
 reg_nmi_log <- glm(as.formula(paste("qi_log ~", reg_vars_nmi)), data = regdata_pred, family = "binomial")
-reg_nmi_med <- glm(as.formula(paste("qi_med ~", reg_vars_nmi)), data = regdata_pred, family = "binomial")
+reg_nmi_cli <- glm(as.formula(paste("qi_cli ~", reg_vars_nmi)), data = regdata_pred, family = "binomial")
 reg_nmi_no  <- glm(as.formula(paste("qi_no  ~", reg_vars_nmi)), data = regdata_pred, family = "binomial")
-reg_nmi_models <- list("Logistical benefit" = reg_nmi_log, "Medical benefit" = reg_nmi_med, "No benefit" = reg_nmi_no)
+reg_nmi_models <- list("Logistical contribution" = reg_nmi_log, "Clinical contribution" = reg_nmi_cli, "No contribution" = reg_nmi_no)
 
 
 
@@ -1184,10 +1193,22 @@ pred_nmi <- map_dfr(names(reg_nmi_models), function(name) {
            var = nmi)
 })
 
+pred_nmi <- pred_nmi %>%
+  mutate(
+    outcome = factor(
+      outcome,
+      levels = c(
+        "Logistical contribution",
+        "Clinical contribution",
+        "No contribution"
+      )
+    )
+  )
+
 
 preds_nmi <- pred_nmi %>% 
   select(var, outcome, estimate, conf.low, conf.high) %>%
-  mutate(outcome = factor(outcome, levels = c("Logistical benefit", "Medical benefit", "No benefit"))) %>% 
+  mutate(outcome = factor(outcome, levels = c("Logistical contribution", "Clinical contribution", "No contribution"))) %>% 
   pivot_wider(names_from = outcome, values_from = c(estimate, conf.low, conf.high))
 
 
@@ -1201,8 +1222,8 @@ plot_grid(
                     width = 0.2,
                     alpha = 1.0) +
       facet_wrap(~ outcome, scales = "fixed") +
-      scale_color_manual(values = benefit_colors) +
-      labs(title = "Predicted Probabilities of benefit",
+      scale_color_manual(values = contribution_colors) +
+      labs(title = "Predicted Probabilities of contribution",
            y = "NMI Category",
            x = "Predicted probability"
       ) +
@@ -1221,7 +1242,7 @@ plot_grid(
   x = 0, y = 0, width = 1, height = 1)
 
 ggsave(
-  filename = "./Figures/Figure6 - benefit prediction II.png",
+  filename = "./Figures/Figure6 - contribution prediction II.png",
   plot = figure6,
   width = 10,
   units = "in",
@@ -1234,16 +1255,16 @@ ggsave(
 rm(reg_nmi_models)
 rm(pred_nmi)
 rm(reg_nmi_log)
-rm(reg_nmi_med)
+rm(reg_nmi_cli)
 rm(reg_nmi_no)
 
 
-### Figure 7: Regression: Outcomes predicted by benefit ----
+### Figure 7: Regression: Outcomes predicted by contribution ----
 
 # Regression data for outcome
 regdata_out <- study_data %>%
   
-  filter(!is.na(qi_logistical_benefit) | !is.na(qi_medical_benefit)) %>%
+  filter(!is.na(qi_logistical_contribution) | !is.na(qi_clinical_contribution)) %>%
   
   transmute(
     
@@ -1254,11 +1275,11 @@ regdata_out <- study_data %>%
                       TRUE ~ 0),
     
     
-    qi_log = ifelse(qi_logistical_benefit == "Yes", 1, 0) %>% replace_na(0),
+    qi_log = ifelse(qi_logistical_contribution == "Yes", 1, 0) %>% replace_na(0),
     
-    qi_med = ifelse(qi_medical_benefit == "Yes", 1, 0) %>% replace_na(0),
+    qi_cli = ifelse(qi_clinical_contribution == "Yes", 1, 0) %>% replace_na(0),
     
-    qi_no = ifelse(qi_log == 0 & qi_med == 0, 1, 0),
+    qi_no = ifelse(qi_log == 0 & qi_cli == 0, 1, 0),
   
     year = factor(alarm_year),
     
@@ -1308,14 +1329,14 @@ regdata_out <- study_data %>%
 
 
 # Regression models
-reg_out_d30 <- glm(as.formula(paste("d30 ~ qi_log*qi_med +",reg_vars_def)),
+reg_out_d30 <- glm(as.formula(paste("d30 ~ qi_log*qi_cli +",reg_vars_def)),
                    data = regdata_out %>% filter(dth_data == 1),
                    family = "binomial")
 
-reg_out_los <- lm(as.formula(paste("los ~ qi_log*qi_med +", reg_vars_def)),
+reg_out_los <- lm(as.formula(paste("los ~ qi_log*qi_cli +", reg_vars_def)),
                   data = regdata_out %>% filter(hos_data == 1))
 
-reg_out_drg <- lm(as.formula(paste("drg ~ qi_log*qi_med +", reg_vars_def)),
+reg_out_drg <- lm(as.formula(paste("drg ~ qi_log*qi_cli +", reg_vars_def)),
                   data = regdata_out %>% filter(hos_data == 1))
 
 
@@ -1326,23 +1347,23 @@ pred_out_d30 <- bind_rows(
     variables = list(qi_log = 1),
     type = "link",
     transform = plogis
-    ) %>% mutate(outcome = "Logistical benefit"),
+    ) %>% mutate(outcome = "Logistical contribution"),
   avg_predictions(
     reg_out_d30,
-    variables = list(qi_med = 1),
+    variables = list(qi_cli = 1),
    type = "link",
    transform = plogis
-    ) %>% mutate(outcome = "Medical benefit"),
+    ) %>% mutate(outcome = "Clinical contribution"),
   avg_predictions(
     reg_out_d30,
-    variables = list(qi_log = 0, qi_med = 0),
+    variables = list(qi_log = 0, qi_cli = 0),
     type = "link",
     transform = plogis
-    ) %>% mutate(outcome = "No benefit")
+    ) %>% mutate(outcome = "No contribution")
 ) %>%
   select(outcome, estimate, conf.low, conf.high) %>%
   mutate(outcome = factor(outcome, levels = c(
-    "No benefit", "Medical benefit", "Logistical benefit"
+    "No contribution", "Clinical contribution", "Logistical contribution"
   )))
 
 
@@ -1352,21 +1373,21 @@ pred_out_los <- bind_rows(
     reg_out_los,
     variables = list(qi_log = 1),
     type = "response"
-  ) %>% mutate(outcome = "Logistical benefit"),
+  ) %>% mutate(outcome = "Logistical contribution"),
   avg_predictions(
     reg_out_los,
-    variables = list(qi_med = 1),
+    variables = list(qi_cli = 1),
     type = "response"
-  ) %>% mutate(outcome = "Medical benefit"),
+  ) %>% mutate(outcome = "Clinical contribution"),
   avg_predictions(
     reg_out_los,
-    variables = list(qi_log = 0, qi_med = 0),
+    variables = list(qi_log = 0, qi_cli = 0),
     type = "response"
-  ) %>% mutate(outcome = "No benefit")
+  ) %>% mutate(outcome = "No contribution")
 ) %>%
   select(outcome, estimate, conf.low, conf.high) %>%
   mutate(outcome = factor(outcome, levels = c(
-    "No benefit", "Medical benefit", "Logistical benefit"
+    "No contribution", "Clinical contribution", "Logistical contribution"
   )))
 
 
@@ -1376,21 +1397,21 @@ pred_out_drg <- bind_rows(
     reg_out_drg,
     variables = list(qi_log = 1),
     type = "response"
-  ) %>% mutate(outcome = "Logistical benefit"),
+  ) %>% mutate(outcome = "Logistical contribution"),
   avg_predictions(
     reg_out_drg,
-    variables = list(qi_med = 1),
+    variables = list(qi_cli = 1),
     type = "response"
-  ) %>% mutate(outcome = "Medical benefit"),
+  ) %>% mutate(outcome = "Clinical contribution"),
   avg_predictions(
     reg_out_drg,
-    variables = list(qi_log = 0, qi_med = 0),
+    variables = list(qi_log = 0, qi_cli = 0),
     type = "response"
-  ) %>% mutate(outcome = "No benefit")
+  ) %>% mutate(outcome = "No contribution")
 ) %>%
   select(outcome, estimate, conf.low, conf.high) %>%
   mutate(outcome = factor(outcome, levels = c(
-    "No benefit", "Medical benefit", "Logistical benefit"
+    "No contribution", "Clinical contribution", "Logistical contribution"
   )))
 
 
@@ -1403,7 +1424,7 @@ fig_out_d30 <- ggplot(pred_out_d30, aes(y = outcome, x = estimate, color = outco
                  orientation = "y",
                  width = 0.2,
                  alpha = 1.0) +
-  scale_color_manual(values = benefit_colors) +
+  scale_color_manual(values = contribution_colors) +
   scale_x_continuous(limits = c(NA, NA)) +
   labs(
     x = "Predicted probability",
@@ -1432,15 +1453,15 @@ fig_out_los <- ggplot(pred_out_los, aes(y = outcome, x = estimate, color = outco
                 orientation = "y",
                 width = 0.2,
                 alpha = 1.0) +
-  scale_color_manual(values = benefit_colors) +
+  scale_color_manual(values = contribution_colors) +
   scale_x_continuous(
     limits = c(NA, NA),
     breaks = seq(0, max(pred_out_los$conf.high, na.rm = TRUE), by = 2)
   )+
   labs(
     x = "Days",
-    y = "Benefit",
-    color = "Benefit"
+    y = "Contribution",
+    color = "Contribution"
   ) +
   theme_minimal()+
   theme(
@@ -1463,12 +1484,12 @@ fig_out_drg <- ggplot(pred_out_drg, aes(y = outcome, x = estimate, color = outco
                 orientation = "y",
                 width = 0.2,
                 alpha = 1.0) +
-  scale_color_manual(values = benefit_colors) +
+  scale_color_manual(values = contribution_colors) +
   scale_x_continuous(limits = c(NA, NA)) +
   labs(
     x = "DRG points",
-    y = "Benefit",
-    color = "Benefit"
+    y = "Contribution",
+    color = "Contribution"
   ) +
   theme_minimal()+
   theme(
@@ -1492,10 +1513,10 @@ main_plots_out <- fig_out_d30 + plot_spacer() + fig_out_los + plot_spacer() + fi
 labels_plot_out <- ggplot(
   transform(
     data.frame(outcome = factor(
-      c("No benefit", "*Medical benefit", "*Logistical benefit"),
-      levels = c("No benefit", "*Medical benefit", "*Logistical benefit")
+      c("No contribution", "*Clinical contribution", "*Logistical contribution"),
+      levels = c("No contribution", "*Clinical contribution", "*Logistical contribution")
     )),
-    y = c(0.26, 0.54, 0.82)
+    y = c(0.19, 0.50, 0.81)
   ),
   aes(x = 1, y = y, label = outcome)
 ) +
@@ -1705,13 +1726,13 @@ rm(t1_overall, t1_mtype, t1_transport, t1_sex, t1_age, t1_naca, t1_out, t1_d30) 
 
 ## Appendix Figures ----
 
-### sFigure 2: Detalied benefit descriptions ----
+### sFigure 2: Detalied contribution descriptions ----
 
-#Logistical benefit
-benefit_log <- ComplexUpset::upset(
+#Logistical contribution
+contribution_log <- ComplexUpset::upset(
   
   study_data %>%
-    filter(qi_logistical_benefit == "Yes") %>% 
+    filter(qi_logistical_contribution == "Yes") %>% 
     transmute(
       `Time benefit` = qi_time_gain != "No",
       Inaccessible   = qi_inaccessible == "Yes"
@@ -1736,13 +1757,13 @@ benefit_log <- ComplexUpset::upset(
   queries = list(
     ComplexUpset::upset_query(
       set   = "Time benefit",
-      fill  = logistic_colors[["Time benefit"]],
-      color = logistic_colors[["Time benefit"]]
+      fill  = Logistic_colors[["Time benefit"]],
+      color = Logistic_colors[["Time benefit"]]
     ),
     ComplexUpset::upset_query(
       set   = "Inaccessible",
-      fill  = logistic_colors[["Inaccessible"]],
-      color = logistic_colors[["Inaccessible"]]
+      fill  = Logistic_colors[["Inaccessible"]],
+      color = Logistic_colors[["Inaccessible"]]
     )
   ),
   
@@ -1750,13 +1771,13 @@ benefit_log <- ComplexUpset::upset(
     list(
       ComplexUpset::intersection_size()
     ),
-    paste0("Logistical benefit n = ", scales::comma(nrow(study_data %>% filter(qi_logistical_benefit == "Yes"))))
+    paste0("QI 13 = 'Yes', n = ", scales::comma(nrow(study_data %>% filter(qi_logistical_contribution == "Yes"))))
   )
 ) +
   
   theme_minimal(base_size = 12) +
   labs(
-    title = "Overlapping categories for logistical benefit",
+    title = "Overlapping categories for logistical contribution",
     x = NULL,
     y = NULL
   ) +
@@ -1767,10 +1788,10 @@ benefit_log <- ComplexUpset::upset(
 
 
 
-#Medical benefit
-benefit_med <- ComplexUpset::upset(
+#Clinical contribution
+contribution_cli <- ComplexUpset::upset(
   study_data %>%
-    filter(qi_medical_benefit == "Yes") %>%
+    filter(qi_clinical_contribution == "Yes") %>%
     transmute(
       `HEMS procedures`      = qi_la_procedures       == "Yes",
       `Other procedures`     = qi_other_procedures    == "Yes",
@@ -1795,23 +1816,23 @@ benefit_med <- ComplexUpset::upset(
   ),
   
   queries = list(
-    ComplexUpset::upset_query(set = "HEMS procedures",     fill = medical_colors[["HEMS procedures"]],     color = medical_colors[["HEMS procedures"]]),
-    ComplexUpset::upset_query(set = "Other procedures",    fill = medical_colors[["Other procedures"]],    color = medical_colors[["Other procedures"]]),
-    ComplexUpset::upset_query(set = "Defer treatment",     fill = medical_colors[["Defer treatment"]],     color = medical_colors[["Defer treatment"]]),
-    ComplexUpset::upset_query(set = "Difficult situation", fill = medical_colors[["Difficult situation"]], color = medical_colors[["Difficult situation"]])
+    ComplexUpset::upset_query(set = "HEMS procedures",     fill = clinical_colors[["HEMS procedures"]],     color = clinical_colors[["HEMS procedures"]]),
+    ComplexUpset::upset_query(set = "Other procedures",    fill = clinical_colors[["Other procedures"]],    color = clinical_colors[["Other procedures"]]),
+    ComplexUpset::upset_query(set = "Defer treatment",     fill = clinical_colors[["Defer treatment"]],     color = clinical_colors[["Defer treatment"]]),
+    ComplexUpset::upset_query(set = "Difficult situation", fill = clinical_colors[["Difficult situation"]], color = clinical_colors[["Difficult situation"]])
   ),
   
   base_annotations = setNames(
     list(
       ComplexUpset::intersection_size()
     ),
-    paste0("Medical benefit n = ", scales::comma(nrow(study_data %>% filter(qi_medical_benefit == "Yes"))))
+    paste0("QI 12 = 'Yes', n = ", scales::comma(nrow(study_data %>% filter(qi_clinical_contribution == "Yes"))))
   )
 ) +
   
   theme_minimal(base_size = 12) +
   labs(
-    title = "Overlapping categories for medical benefit",
+    title = "Overlapping categories for clinical contribution",
     x = NULL,
     y = NULL
   ) +
@@ -1824,7 +1845,7 @@ benefit_med <- ComplexUpset::upset(
 
 #Combined plot
 sFigure2 <- plot_grid(
-  benefit_log, benefit_med,
+  contribution_log, contribution_cli,
   ncol = 1, align = "v",
   labels = c("a)", "b)"),
   label_size = 12, label_fontface = "bold",
@@ -1833,7 +1854,7 @@ sFigure2 <- plot_grid(
 )
 
 ggsave(
-  filename = "./Figures/sFigure2 - benefit details.png",
+  filename = "./Figures/sFigure2 - contribution details.png",
   plot = sFigure2,
   width = 10,
   units = "in",
@@ -1842,22 +1863,22 @@ ggsave(
 )
 
 
-rm(benefit_log, benefit_med)
+rm(contribution_log, contribution_cli)
 
 
 
 ## Appendix Tables ----
 
-# Overall table (for building benefittables)
+# Overall table (for building contributiontables)
 aT0_overall <- study_data %>% 
-  summarise(n_log = sum(qi_logistical_benefit == "Yes", na.rm = TRUE),
-            n_med = sum(qi_medical_benefit == "Yes", na.rm = TRUE),
-            n_int = sum(qi_logistical_benefit == "Yes" & qi_medical_benefit == "Yes", na.rm = TRUE),
+  summarise(n_log = sum(qi_logistical_contribution == "Yes", na.rm = TRUE),
+            n_cli = sum(qi_clinical_contribution == "Yes", na.rm = TRUE),
+            n_int = sum(qi_logistical_contribution == "Yes" & qi_clinical_contribution == "Yes", na.rm = TRUE),
             n_no = sum(
-              (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)) &
-                (qi_medical_benefit    != "Yes" | is.na(qi_medical_benefit)) &
-                (qi_logistical_benefit == "No" | qi_medical_benefit == "No") &
-                !(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit)),
+              (qi_logistical_contribution != "Yes" | is.na(qi_logistical_contribution)) &
+                (qi_clinical_contribution    != "Yes" | is.na(qi_clinical_contribution)) &
+                (qi_logistical_contribution == "No" | qi_clinical_contribution == "No") &
+                !(is.na(qi_logistical_contribution) & is.na(qi_clinical_contribution)),
               na.rm = TRUE
             ),
             total = n()) %>% 
@@ -1884,20 +1905,20 @@ write_xlsx(aT1, "./Tables/Raw tables/@t1_raw.xlsx")
 
 
 
-### aTable 2: Benefit associations ----
+### aTable 2: Contribution associations ----
 aT2a <- study_data %>%
   group_by(hm_type_cat) %>% 
   mutate(hm_type_cat = case_when(hm_type_cat == "SAR" ~ "SAR / Other",
                                  hm_type_cat == "Other" ~ "SAR / Other",
                                  TRUE ~ hm_type_cat)) %>% 
-                   summarise(n_log = sum(qi_logistical_benefit == "Yes", na.rm = TRUE),
-                             n_med = sum(qi_medical_benefit == "Yes", na.rm = TRUE),
-                             n_int = sum(qi_logistical_benefit == "Yes" & qi_medical_benefit == "Yes", na.rm = TRUE),
+                   summarise(n_log = sum(qi_logistical_contribution == "Yes", na.rm = TRUE),
+                             n_cli = sum(qi_clinical_contribution == "Yes", na.rm = TRUE),
+                             n_int = sum(qi_logistical_contribution == "Yes" & qi_clinical_contribution == "Yes", na.rm = TRUE),
                              n_no = sum(
-                               (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)) &
-                                 (qi_medical_benefit    != "Yes" | is.na(qi_medical_benefit)) &
-                                 (qi_logistical_benefit == "No" | qi_medical_benefit == "No") &
-                                 !(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit)),
+                               (qi_logistical_contribution != "Yes" | is.na(qi_logistical_contribution)) &
+                                 (qi_clinical_contribution    != "Yes" | is.na(qi_clinical_contribution)) &
+                                 (qi_logistical_contribution == "No" | qi_clinical_contribution == "No") &
+                                 !(is.na(qi_logistical_contribution) & is.na(qi_clinical_contribution)),
                                na.rm = TRUE
                              ),
                              total = n()) %>% 
@@ -1908,14 +1929,14 @@ aT2a <- study_data %>%
 
 aT2b <- study_data %>%
   group_by(hm_vessel) %>% 
-  summarise(n_log = sum(qi_logistical_benefit == "Yes", na.rm = TRUE),
-            n_med = sum(qi_medical_benefit == "Yes", na.rm = TRUE),
-            n_int = sum(qi_logistical_benefit == "Yes" & qi_medical_benefit == "Yes", na.rm = TRUE),
+  summarise(n_log = sum(qi_logistical_contribution == "Yes", na.rm = TRUE),
+            n_cli = sum(qi_clinical_contribution == "Yes", na.rm = TRUE),
+            n_int = sum(qi_logistical_contribution == "Yes" & qi_clinical_contribution == "Yes", na.rm = TRUE),
             n_no = sum(
-              (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)) &
-                (qi_medical_benefit    != "Yes" | is.na(qi_medical_benefit)) &
-                (qi_logistical_benefit == "No" | qi_medical_benefit == "No") &
-                !(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit)),
+              (qi_logistical_contribution != "Yes" | is.na(qi_logistical_contribution)) &
+                (qi_clinical_contribution    != "Yes" | is.na(qi_clinical_contribution)) &
+                (qi_logistical_contribution == "No" | qi_clinical_contribution == "No") &
+                !(is.na(qi_logistical_contribution) & is.na(qi_clinical_contribution)),
               na.rm = TRUE
             ),
             total = n()) %>% 
@@ -1926,14 +1947,14 @@ aT2b <- study_data %>%
 
 aT2c <- study_data %>%
   group_by(hp_naca_gr) %>% 
-  summarise(n_log = sum(qi_logistical_benefit == "Yes", na.rm = TRUE),
-            n_med = sum(qi_medical_benefit == "Yes", na.rm = TRUE),
-            n_int = sum(qi_logistical_benefit == "Yes" & qi_medical_benefit == "Yes", na.rm = TRUE),
+  summarise(n_log = sum(qi_logistical_contribution == "Yes", na.rm = TRUE),
+            n_cli = sum(qi_clinical_contribution == "Yes", na.rm = TRUE),
+            n_int = sum(qi_logistical_contribution == "Yes" & qi_clinical_contribution == "Yes", na.rm = TRUE),
             n_no = sum(
-              (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)) &
-                (qi_medical_benefit    != "Yes" | is.na(qi_medical_benefit)) &
-                (qi_logistical_benefit == "No" | qi_medical_benefit == "No") &
-                !(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit)),
+              (qi_logistical_contribution != "Yes" | is.na(qi_logistical_contribution)) &
+                (qi_clinical_contribution    != "Yes" | is.na(qi_clinical_contribution)) &
+                (qi_logistical_contribution == "No" | qi_clinical_contribution == "No") &
+                !(is.na(qi_logistical_contribution) & is.na(qi_clinical_contribution)),
               na.rm = TRUE
             ),
             total = n()) %>% 
@@ -1949,14 +1970,14 @@ aT2d <- study_data %>%
                            )
          ) %>% 
   group_by(proc) %>% 
-  summarise(n_log = sum(qi_logistical_benefit == "Yes", na.rm = TRUE),
-            n_med = sum(qi_medical_benefit == "Yes", na.rm = TRUE),
-            n_int = sum(qi_logistical_benefit == "Yes" & qi_medical_benefit == "Yes", na.rm = TRUE),
+  summarise(n_log = sum(qi_logistical_contribution == "Yes", na.rm = TRUE),
+            n_cli = sum(qi_clinical_contribution == "Yes", na.rm = TRUE),
+            n_int = sum(qi_logistical_contribution == "Yes" & qi_clinical_contribution == "Yes", na.rm = TRUE),
             n_no = sum(
-              (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)) &
-                (qi_medical_benefit    != "Yes" | is.na(qi_medical_benefit)) &
-                (qi_logistical_benefit == "No" | qi_medical_benefit == "No") &
-                !(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit)),
+              (qi_logistical_contribution != "Yes" | is.na(qi_logistical_contribution)) &
+                (qi_clinical_contribution    != "Yes" | is.na(qi_clinical_contribution)) &
+                (qi_logistical_contribution == "No" | qi_clinical_contribution == "No") &
+                !(is.na(qi_logistical_contribution) & is.na(qi_clinical_contribution)),
               na.rm = TRUE
             ),
             total = n()) %>% 
@@ -1972,14 +1993,14 @@ rm(aT2a, aT2b, aT2c, aT2d)
 aT3 <- bind_rows(aT0_overall,
                  study_data %>%
                    group_by(hp_dia_3) %>% 
-                   summarise(n_log = sum(qi_logistical_benefit == "Yes", na.rm = TRUE),
-                             n_med = sum(qi_medical_benefit == "Yes", na.rm = TRUE),
-                             n_int = sum(qi_logistical_benefit == "Yes" & qi_medical_benefit == "Yes", na.rm = TRUE),
+                   summarise(n_log = sum(qi_logistical_contribution == "Yes", na.rm = TRUE),
+                             n_cli = sum(qi_clinical_contribution == "Yes", na.rm = TRUE),
+                             n_int = sum(qi_logistical_contribution == "Yes" & qi_clinical_contribution == "Yes", na.rm = TRUE),
                              n_no = sum(
-                               (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)) &
-                                 (qi_medical_benefit    != "Yes" | is.na(qi_medical_benefit)) &
-                                 (qi_logistical_benefit == "No" | qi_medical_benefit == "No") &
-                                 !(is.na(qi_logistical_benefit) & is.na(qi_medical_benefit)),
+                               (qi_logistical_contribution != "Yes" | is.na(qi_logistical_contribution)) &
+                                 (qi_clinical_contribution    != "Yes" | is.na(qi_clinical_contribution)) &
+                                 (qi_logistical_contribution == "No" | qi_clinical_contribution == "No") &
+                                 !(is.na(qi_logistical_contribution) & is.na(qi_clinical_contribution)),
                                na.rm = TRUE
                              ),
                              total = n()) %>% 
@@ -2044,21 +2065,21 @@ rm(preds_nmi)   #Cleanup
 
 #30-day mortality
 aT7a <- study_data %>%
-  filter(!is.na(qi_logistical_benefit) | !is.na(qi_medical_benefit)) %>%
+  filter(!is.na(qi_logistical_contribution) | !is.na(qi_clinical_contribution)) %>%
   filter(!is.na(pat_pas_first) & hp_naca != 7) %>%
   mutate(
-    qi_log = ifelse(qi_logistical_benefit == "Yes", 1, 0) %>% replace_na(0),
-    qi_med = ifelse(qi_medical_benefit == "Yes", 1, 0) %>% replace_na(0),
-    qi_no  = ifelse(qi_log == 0 & qi_med == 0, 1, 0)
+    qi_log = ifelse(qi_logistical_contribution == "Yes", 1, 0) %>% replace_na(0),
+    qi_cli = ifelse(qi_clinical_contribution == "Yes", 1, 0) %>% replace_na(0),
+    qi_no  = ifelse(qi_log == 0 & qi_cli == 0, 1, 0)
   ) %>%
   reframe(
-    outcome = c("Logistical benefit", "Medical benefit", "No benefit"),
+    outcome = c("Logistical contribution", "clinical contribution", "No contribution"),
     total   = n(),
     cases   = c(sum(qi_log),
-                sum(qi_med),
+                sum(qi_cli),
                 sum(qi_no)),
     d30_rate = c(sum(qi_log == 1 & pat_d30 == 1)/sum(qi_log),
-                 sum(qi_med == 1 & pat_d30 == 1)/sum(qi_med),
+                 sum(qi_cli == 1 & pat_d30 == 1)/sum(qi_cli),
                  sum(qi_no  == 1 & pat_d30 == 1)/sum(qi_no))
   ) %>% 
   left_join(pred_out_d30, by = "outcome")
@@ -2068,21 +2089,21 @@ write_xlsx(aT7a, "./Tables/Raw tables/@t7a_raw.xlsx")
 
 #Hospital days
 aT7b <- study_data %>%
-  filter(!is.na(qi_logistical_benefit) | !is.na(qi_medical_benefit)) %>%
+  filter(!is.na(qi_logistical_contribution) | !is.na(qi_clinical_contribution)) %>%
   filter(!is.na(he_in)) %>%
   mutate(
-    qi_log = ifelse(qi_logistical_benefit == "Yes", 1, 0) %>% replace_na(0),
-    qi_med = ifelse(qi_medical_benefit == "Yes", 1, 0) %>% replace_na(0),
-    qi_no  = ifelse(qi_log == 0 & qi_med == 0, 1, 0)
+    qi_log = ifelse(qi_logistical_contribution == "Yes", 1, 0) %>% replace_na(0),
+    qi_cli = ifelse(qi_clinical_contribution == "Yes", 1, 0) %>% replace_na(0),
+    qi_no  = ifelse(qi_log == 0 & qi_cli == 0, 1, 0)
   ) %>%
   reframe(
-    outcome = c("Logistical benefit", "Medical benefit", "No benefit"),
+    outcome = c("Logistical contribution", "Clinical contributuin", "No contribution"),
     total   = n(),
     cases   = c(sum(qi_log),
-                sum(qi_med),
+                sum(qi_cli),
                 sum(qi_no)),
     mean_los     = c(mean(hs_days[qi_log == 1], na.rm = TRUE),
-                mean(hs_days[qi_med == 1], na.rm = TRUE),
+                mean(hs_days[qi_cli == 1], na.rm = TRUE),
                 mean(hs_days[qi_no  == 1], na.rm = TRUE))
   ) %>% 
   left_join(pred_out_los, by = "outcome")
@@ -2092,21 +2113,21 @@ write_xlsx(aT7b, "./Tables/Raw tables/@t7b_raw.xlsx")
 
 #DRG Points
 aT7c <- study_data %>%
-  filter(!is.na(qi_logistical_benefit) | !is.na(qi_medical_benefit)) %>%
+  filter(!is.na(qi_logistical_contribution) | !is.na(qi_clinical_contribution)) %>%
   filter(!is.na(he_in)) %>%
   mutate(
-    qi_log = ifelse(qi_logistical_benefit == "Yes", 1, 0) %>% replace_na(0),
-    qi_med = ifelse(qi_medical_benefit == "Yes", 1, 0) %>% replace_na(0),
-    qi_no  = ifelse(qi_log == 0 & qi_med == 0, 1, 0)
+    qi_log = ifelse(qi_logistical_contribution == "Yes", 1, 0) %>% replace_na(0),
+    qi_cli = ifelse(qi_clinical_contribution == "Yes", 1, 0) %>% replace_na(0),
+    qi_no  = ifelse(qi_log == 0 & qi_cli == 0, 1, 0)
   ) %>%
   reframe(
-    outcome = c("Logistical benefit", "Medical benefit", "No benefit"),
+    outcome = c("Logistical contribution", "Clinical contribution", "No contribution"),
     total   = n(),
     cases   = c(sum(qi_log),
-                sum(qi_med),
+                sum(qi_cli),
                 sum(qi_no)),
     mean_drg  = c(mean(hs_drg_points[qi_log == 1], na.rm = TRUE),
-                  mean(hs_drg_points[qi_med == 1], na.rm = TRUE),
+                  mean(hs_drg_points[qi_cli == 1], na.rm = TRUE),
                   mean(hs_drg_points[qi_no  == 1], na.rm = TRUE))
   ) %>% 
   left_join(pred_out_drg, by = "outcome")
@@ -2117,23 +2138,23 @@ rm(pred_out_d30, pred_out_los, pred_out_drg)
 
 # Extra ----
 
-## Benefit distribution ----
+## Contribution distribution ----
 
-benefit_dist <- study_data %>% 
+contribution_dist <- study_data %>% 
   summarise(
     n         = n(),
-    log_all   = sum(qi_logistical_benefit == "Yes", na.rm=TRUE),
-    med_all   = sum(qi_medical_benefit == "Yes", na.rm=TRUE),
-    dbl       = sum(qi_logistical_benefit == "Yes" & qi_medical_benefit == "Yes", na.rm=TRUE),
-    log_exc   = sum(qi_logistical_benefit == "Yes" & (qi_medical_benefit != "Yes" | is.na(qi_medical_benefit)), na.rm=TRUE),
-    med_exc   = sum(qi_medical_benefit == "Yes" & (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit)), na.rm=TRUE),
-    no        = sum((qi_logistical_benefit == "No" | is.na(qi_logistical_benefit)) & (qi_medical_benefit == "No" | is.na(qi_medical_benefit)), na.rm=TRUE),
+    log_all   = sum(qi_logistical_contribution == "Yes", na.rm=TRUE),
+    cli_all   = sum(qi_clinical_contribution == "Yes", na.rm=TRUE),
+    dbl       = sum(qi_logistical_contribution == "Yes" & qi_clinical_contribution == "Yes", na.rm=TRUE),
+    log_exc   = sum(qi_logistical_contribution == "Yes" & (qi_clinical_contribution != "Yes" | is.na(qi_clinical_contribution)), na.rm=TRUE),
+    cli_exc   = sum(qi_clinical_contribution == "Yes" & (qi_logistical_contribution != "Yes" | is.na(qi_logistical_contribution)), na.rm=TRUE),
+    no        = sum((qi_logistical_contribution == "No" | is.na(qi_logistical_contribution)) & (qi_clinical_contribution == "No" | is.na(qi_clinical_contribution)), na.rm=TRUE),
   )
 
-write_xlsx(age_dist, "./Tables/Raw tables/benefit_dist.xlsx")
+write_xlsx(contribution_dist, "./Tables/Raw tables/contribution_dist.xlsx")
 
-medical_dist <- study_data %>%
-  filter(qi_medical_benefit == "Yes" & (qi_logistical_benefit != "Yes" | is.na(qi_logistical_benefit))) %>%
+clinical_dist <- study_data %>%
+  filter(qi_clinical_contribution == "Yes" & (qi_logistical_contribution != "Yes" | is.na(qi_logistical_contribution))) %>%
   group_by(hm_vessel) %>%
   summarise(n = n())
 
@@ -2151,35 +2172,35 @@ age_dist <- study_data %>%
 write_xlsx(age_dist, "./Tables/Raw tables/age_dist.xlsx")
 
 
-## Benefit assessment per physician ----
+## Contribution assessment per physician ----
 
 #Numeric summary
 physician_num <- study_data %>% 
   group_by(hm_doc_label) %>%
   summarise(n = n(),
-            log = sum(qi_logistical_benefit == "Yes", na.rm = TRUE),
-            med = sum(qi_medical_benefit == "Yes", na.rm = TRUE),
-            no = sum((qi_logistical_benefit == "No" | is.na(qi_logistical_benefit)) & (qi_medical_benefit == "No" | is.na(qi_medical_benefit)))
+            log = sum(qi_logistical_contribution == "Yes", na.rm = TRUE),
+            cli = sum(qi_clinical_contribution == "Yes", na.rm = TRUE),
+            no = sum((qi_logistical_contribution == "No" | is.na(qi_logistical_contribution)) & (qi_clinical_contribution == "No" | is.na(qi_clinical_contribution)))
             )
 
 write_xlsx(physician_num, "./Tables/Raw tables/physician_summary.xlsx")
 
-#Median, Q1 and Q3 per benefit category
+#Median, Q1 and Q3 per contribution category
 physician_summary <- study_data %>%
   group_by(hm_doc_label) %>%
   summarise(
     n   = n(),
-    log = 100 * mean(qi_logistical_benefit == "Yes", na.rm = TRUE),
-    med = 100 * mean(qi_medical_benefit == "Yes",     na.rm = TRUE),
+    log = 100 * mean(qi_logistical_contribution == "Yes", na.rm = TRUE),
+    cli = 100 * mean(qi_clinical_contribution == "Yes",     na.rm = TRUE),
     no  = 100 * mean(
-      (qi_logistical_benefit == "No"  | is.na(qi_logistical_benefit)) &
-        (qi_medical_benefit     == "No" | is.na(qi_medical_benefit)),
+      (qi_logistical_contribution == "No"  | is.na(qi_logistical_contribution)) &
+        (qi_clinical_contribution     == "No" | is.na(qi_clinical_contribution)),
       na.rm = TRUE
     )
   ) %>%
   summarise(
     across(
-      c(log, med, no),
+      c(log, cli, no),
       list(
         median = ~round(median(.x, na.rm = TRUE)),
         q1     = ~round(quantile(.x, 0.25, na.rm = TRUE)),
@@ -2194,7 +2215,7 @@ write_xlsx(physician_summary, "./Tables/Raw tables/physician_variation.xlsx")
   
 # Cleanup ----
 rm(aT0_overall)
-rm(benefit_colors, logistic_colors, medical_colors)
-rm(benefit_figA, benefit_figB)
+rm(contribution_colors, logistic_colors, clinical_colors)
+rm(contribution_figA, contribution_figB)
 
 
