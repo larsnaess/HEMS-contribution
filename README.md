@@ -1,5 +1,5 @@
 This repository contains code for assembling and analysing data for the project:
-*"Assessment of benefit in a Norwegian Helicopter Emergency Medical Service using integrated health data"*
+*"Assessment of clinical and logistical contribution in a Norwegian Helicopter Emergency Medical Service using integrated data: A retrospective observational study"*
 
 Published work can be found here: [insert link]
 
