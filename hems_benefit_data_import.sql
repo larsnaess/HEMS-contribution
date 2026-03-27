@@ -572,21 +572,21 @@ SELECT
         ELSE NULL
     END AS qi_patient_contact
 
-  -- Medical benefit
+  -- Clinical contribution
   , CASE
         WHEN MAX(CASE WHEN qib.qi_answer_code = '24.1' THEN 1 ELSE 0 END) = 1 THEN 'Yes'
         WHEN MAX(CASE WHEN qib.qi_answer_code = '24.2' THEN 1 ELSE 0 END) = 1 THEN 'No'
         ELSE NULL
-    END AS qi_medical_benefit
+    END AS qi_clinical_contribution
 
-  -- Logistical benefit
+  -- Logistical contribution
   , CASE
         WHEN MAX(CASE WHEN qib.qi_answer_code = '25.1' THEN 1 ELSE 0 END) = 1 THEN 'Yes'
         WHEN MAX(CASE WHEN qib.qi_answer_code = '25.2' THEN 1 ELSE 0 END) = 1 THEN 'No'
         ELSE NULL
-    END AS qi_logistical_benefit
+    END AS qi_logistical_contribution
 
-  -- Subsections for 24 (medical benefit)
+  -- Subsections for 24 (clinical contribution)
   , CASE
         WHEN MAX(CASE WHEN qib.qi_answer_code IN ('24.1','24.2') THEN 1 ELSE 0 END) = 1
              THEN CASE WHEN MAX(CASE WHEN qib.qi_answer_code = '24.1.1' THEN 1 ELSE 0 END) = 1 THEN 'Yes' ELSE 'No' END
@@ -611,7 +611,7 @@ SELECT
         ELSE NULL
     END AS qi_difficult_situation
 
-  -- Subsections for 25 (logistical benefit)
+  -- Subsections for 25 (logistical contribution)
   , CASE
 		WHEN MAX(CASE WHEN qib.qi_answer_code IN ('25.1','25.2') THEN 1 ELSE 0 END) = 1
 			THEN CASE
@@ -666,7 +666,7 @@ SELECT
              )
          )
 		 
-		 AND (qi_logistical_benefit IS NOT NULL OR qi_medical_benefit IS NOT NULL)
+		 AND (qi_logistical_contribution IS NOT NULL OR qi_clinical_contribution IS NOT NULL)
 				THEN 1
 				ELSE 0
       END 																AS included
