@@ -2073,7 +2073,7 @@ aT7a <- study_data %>%
     qi_no  = ifelse(qi_log == 0 & qi_cli == 0, 1, 0)
   ) %>%
   reframe(
-    outcome = c("Logistical contribution", "clinical contribution", "No contribution"),
+    outcome = c("Logistical contribution", "Clinical contribution", "No contribution"),
     total   = n(),
     cases   = c(sum(qi_log),
                 sum(qi_cli),
@@ -2097,7 +2097,7 @@ aT7b <- study_data %>%
     qi_no  = ifelse(qi_log == 0 & qi_cli == 0, 1, 0)
   ) %>%
   reframe(
-    outcome = c("Logistical contribution", "Clinical contributuin", "No contribution"),
+    outcome = c("Logistical contribution", "Clinical contribution", "No contribution"),
     total   = n(),
     cases   = c(sum(qi_log),
                 sum(qi_cli),
